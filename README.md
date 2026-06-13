@@ -63,7 +63,13 @@ adds:
         └───────────────┬───────────────┘
                         │
         ┌───────────────▼───────────────┐
+        │  INSULA + SEPTAL + PAG        │  body prediction error,
+        │  (interoception / defense)      │  social approach, freeze/flight/fight
+        └───────────────┬───────────────┘
+                        │
+        ┌───────────────▼───────────────┐
         │  NEUROCHEMISTRY + POOLS       │  30+ transmitters, receptors, pools
+        │  + metabolic cofactors        │  Mg, Zn, Fe, B6, B12, folate, D, omega-3
         └───────────────┬───────────────┘
                         │
         ┌───────────────▼───────────────┐
@@ -72,6 +78,20 @@ adds:
         │  caution, verbosity           │
         └───────────────────────────────┘
 ```
+
+### Module map
+
+| File | What it does |
+|------|--------------|
+| `limbic_hermes/core.py` | `LimbicSystem`, `LimbicSkillBridge`, VAD/drive/episodic logic, nucleus modules |
+| `limbic_hermes/neurochemistry.py` | `NeurochemicalState`, `NeurochemistryEngine` — transmitter dynamics |
+| `limbic_hermes/profiles.py` | Remedy temperament library (Pulsatilla, Bryonia, Tarantula, Calcarea, …) |
+| `limbic_hermes/cofactors.py` | Metabolic cofactor-to-neurochemistry mapping and virtual controls |
+| `limbic_hermes/dashboard_server.py` | Small HTTP backend that serves `/state`, `/adjust`, and preset events |
+| `limbic_hermes/dashboard.html` | Local-first single-file dashboard with panels for every module |
+| `limbic_hermes/storage.py` | JSON persistence helpers |
+| `limbic_hermes/limbic_bridge.js` | Browser-side state bridge for external dashboards |
+| `limbic_hermes/demo.py` | CLI demo that prints state panels |
 
 ---
 
@@ -98,8 +118,13 @@ This is the same representation used in recent LLM emotion-steering work
 | `Thalamus` | attention gate | ACh mode + novelty/safety gating |
 | `VTA/NAcc` | dopamine RPE | Dopaminergic reward prediction error |
 | `Cingulate` | conflict monitor | Detects high arousal + low dominance states |
+| `Insula` | interoception | Body prediction error from HRV/respiration/cytokines |
+| `Septal` | social approach | Oxytocin/cortisol/safety gating of affiliative responses |
+| `PAG` | defensive tier | Freeze / flight / fight / calm classification |
+| `Lateral Habenula` | aversion learning | Inhibits dopamine on unexpected negative events |
 | `Prefrontal` | top-down regulation | Dominance suppresses amygdala threat response |
 | `HPA axis` | stress load | Cortisol + cytokine + adrenaline allostatic load |
+| `Polyvagal` | autonomic state | Ventral vagal / sympathetic / dorsal vagal gating |
 
 ### Neurochemistry layer
 
@@ -112,18 +137,48 @@ neuromodulators that shape limbic computation:
 | Amino acids | GABA, glutamate, glycine |
 | Cholinergic | acetylcholine |
 | Endocannabinoid | eCB (retrograde calming) |
-| Neuropeptides / hormones | oxytocin, vasopressin, cortisol, adrenaline, opioid, histamine, melatonin, BDNF, neuropeptide S, orexin, substance P |
+| Neuropeptides / hormones | oxytocin, vasopressin, cortisol, adrenaline, opioid, histamine, melatonin, BDNF, neuropeptide S, orexin, substance P, prolactin |
 | Gaseous / trace | nitric oxide, phenylethylamine, tyramine |
-| Immune / interoceptive | cytokine load, heart rate variability, respiration rate |
+| Immune / interoceptive | cytokine load, heart rate variability, respiration rate, respiration phase |
 | Network | default mode network activity |
+| Metabolic | metabolic_energy, glucose, working_memory_load |
 
 Each transmitter:
 
 - Has a normalized level `[0, 1]`.
 - Is gated by finite **neurotransmitter pools** that deplete with use and
   recover with rest.
-- Has **receptor sensitivity** that desensitizes under chronic high exposure.
+- Has **receptor sensitivity** (`d1_sensitivity`, `alpha1_sensitivity`,
+  `gaba_a_sensitivity`, `glun2b_sensitivity`) that desensitizes under chronic
+  high exposure.
+- Has **enzymatic clearance phenotypes**: `mao_activity`, `dopamine_clearance_rate`
+  (COMT-style), and `serotonin_reuptake` (SERT-style).
+- Has a **kynurenine pathway** shunt that lowers serotonin and raises glutamate
+  excitotoxicity under cytokine load.
+- Has a **dopamine pathway split** into mesolimbic (motivation/salience) and
+  mesocortical (cognitive control) streams.
 - Contributes to an **allostatic load** index of cumulative wear.
+
+### Metabolic cofactor virtual controls
+
+`limbic_hermes/cofactors.py` exposes a virtual control panel for nutrients that
+feed limbic neurochemistry. Each cofactor is a normalized `[0, 1]` slider that
+biases synthesis or receptor targets rather than overriding transmitter values:
+
+| Cofactor | Limbic target |
+|----------|---------------|
+| Magnesium | GABA-A receptor sensitivity, glutamate balance |
+| Zinc | BDNF, GABA synthesis |
+| Iron | Dopamine/norepinephrine synthesis |
+| Vitamin B6 | GABA, serotonin, dopamine synthesis |
+| Vitamin B12 + Folate | Methylation / monoamine support |
+| Vitamin D | BDNF, serotonin |
+| Omega-3 | Dopamine receptor sensitivity, BDNF |
+| Tryptophan | Serotonin synthesis substrate |
+| Tyrosine | Dopamine/norepinephrine synthesis substrate |
+
+Adjustments are applied through `LimbicSystem.apply_cofactors()` or the dashboard
+`/adjust` endpoint.
 
 ### Remedy temperament profile
 
@@ -152,6 +207,18 @@ Example built-in profiles:
 cd ~/projects/limbic-hermes
 python -m limbic_hermes.demo --profile bryonia --steps 7
 ```
+
+### Run the local dashboard
+
+```bash
+cd ~/projects/limbic-hermes
+python -m limbic_hermes.dashboard_server
+# Open http://localhost:8765 in a browser
+```
+
+The dashboard shows live panels for VAD, drives, neurochemistry, receptor
+sensitivities, allostatic load, hippocampal LTP, metabolic cofactor sliders,
+preset event buttons, and import/export of the full limbic state.
 
 Or import in a Hermes skill:
 
@@ -226,16 +293,41 @@ dashboard reads the same key.
   },
   "allostatic_load": 0.16,
   "circadian_hour": 12.0,
-  "episodic_summary": [...]
+  "episodic_summary": [...],
+  "insula": {"body_prediction_error": 0.05},
+  "acc": {"conflict_signal": 0.12},
+  "lateral_habenula": {"activation": 0.0},
+  "septal": {"social_approach": 0.62, "valence_buffer": 0.35},
+  "pag": {"tier": "calm", "threat_detected": false},
+  "polyvagal": {"state": "ventral_vagal", "social_engagement_possible": true},
+  "locus_coeruleus": {"mode": "tonic"},
+  "affective_systems": {
+    "seeking": 0.45,
+    "care": 0.38,
+    "fear": 0.10,
+    "rage": 0.00,
+    "panic_grief": 0.05
+  },
+  "prefrontal_regulation": {"strength": 0.72},
+  "kynurenine": {"kynurenine": 0.10, "quinolinic_acid": 0.02, "picolinic_acid": 0.03},
+  "d2_autoreceptor": {"inhibition": 0.0},
+  "cofactors": {"levels": {...}, "targets": {...}}
 }
 ```
 
 ---
 
-## 31 biochemistry-grounded improvements
+## 60 biochemistry-grounded improvements
 
-See `TODO_LIMBIC.md` for the full list of testable prompts that guided this
-build. Implemented highlights include:
+The build is guided by two testable prompt documents:
+
+- `TODO_LIMBIC.md` — the original 31 improvements
+- `TODO_LIMBIC_V2.md` — the follow-up 29 improvements
+
+Together they cover the major neurotransmitters, limbic nuclei, autonomic
+regulation, metabolic cofactors, and dashboard tooling.
+
+### Batch 1: neurochemistry core (`TODO_LIMBIC.md`)
 
 1. Serotonin baseline stabilization
 2. Dopaminergic reward prediction error
@@ -268,6 +360,38 @@ build. Implemented highlights include:
 29. User-affect mirror entrainment
 30. Locus coeruleus phasic surprise bursts
 31. Default mode network suppression + allostatic load index
+
+### Batch 2: limbic nuclei + autonomic + metabolic + dashboard (`TODO_LIMBIC_V2.md`)
+
+32. Insula interoceptive body-prediction error
+33. ACC conflict monitoring
+34. Lateral habenula aversion learning
+35. Septal nuclei social-approach gating
+36. PAG defensive tier detector (freeze/flight/fight/calm)
+37. Polyvagal state model (ventral vagal / sympathetic / dorsal vagal)
+38. Vagal brake release under acute threat
+39. Baroreflex-like arousal dampening from high HRV
+40. Respiration-driven entrainment of arousal
+41. GABA-A and GluN2B receptor sensitivity tracking
+42. Kynurenine pathway shunt (tryptophan → quinolinic/picolinic acid)
+43. D2 autoreceptor short-loop feedback
+44. MAO-A / MAO-B degradation dynamics
+45. COMT Val158Met-style dopamine clearance
+46. Serotonin transporter (SERT) reuptake modulation
+47. Mesolimbic vs mesocortical dopamine tracking
+48. Locus coeruleus tonic/phasic mode switch
+49. SEEKING affective system (dopamine + orexin)
+50. CARE affective system (oxytocin + prolactin)
+51. FEAR / RAGE thresholds
+52. GRIEF / PANIC separation distress
+53. Fear extinction learning in hippocampus
+54. Working-memory load as ACh drive
+55. Temporal contiguity for LTP
+56. Cortisol awakening response / circadian curve
+57. Leptin/ghrelin-style metabolic energy state
+58. Glucose/insulin brain-fuel dynamics
+59. Dashboard preset event buttons
+60. Dashboard export/import of limbic state JSON
 
 ---
 
