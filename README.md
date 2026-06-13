@@ -1,7 +1,8 @@
 # Hermes Agent Limbic System
 
 A small, neuro-inspired affective engine for Hermes agents. It gives the agent a
-coherent, tunable emotional/state layer modeled on the human **limbic system**.
+coherent, tunable emotional/state layer modeled on the human **limbic system**
+and grounded in **neurochemistry**.
 
 The design goal is not to make the agent "emotional" in a theatrical way, but to
 give it a **persistent, explainable internal state** that influences tone,
@@ -27,24 +28,24 @@ adds:
 ## Architecture
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│  INPUTS: user_message, task_start, task_complete, error, ...   │
-└───────────────────────┬───────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────────┐
+│  INPUTS: user_message, task_start, task_complete, error, praise, ...  │
+└───────────────────────┬───────────────────────────────────────────────┘
                         │
         ┌───────────────▼───────────────┐
-        │     THALAMUS (attention)      │  <── remedy: attention biases
+        │     THALAMUS (attention)      │  <── ACh mode + remedy biases
         │  gate inputs by safety/novelty│
         └───────────────┬───────────────┘
                         │
         ┌───────────────▼───────────────┐
-        │     AMYGDALA (appraisal)      │  <── remedy: threat/reward gain
+        │     AMYGDALA (appraisal)      │  <── 5HT/NE/GABA/Glu + remedy gains
         │  valence / arousal / dominance│
         └───────────────┬───────────────┘
                         │
-        ┌───────────────▼───────────────┐     ┌─────────────────────┐
-        │   VTA / NAcc (RPE)          │────▶│ HIPPOCAMPUS         │
-        │  reward prediction error      │     │ episodic buffer     │
-        └───────────────┬───────────────┘     └─────────────────────┘
+        ┌───────────────▼───────────────┐     ┌─────────────────────────────┐
+        │   VTA / NAcc (dopamine RPE)   │────▶│ HIPPOCAMPUS + LTP weights │
+        │  reward prediction error      │     │ episodic buffer             │
+        └───────────────┬───────────────┘     └─────────────────────────────┘
                         │
         ┌───────────────▼───────────────┐
         │      VAD AFFECTIVE STATE      │
@@ -52,9 +53,9 @@ adds:
         └───────────────┬───────────────┘
                         │
         ┌───────────────▼───────────────┐
-        │   HYPOTHALAMUS (drives)     │  <── remedy: rest/error sensitivity
-        │  rest_need, task_load,      │
-        │  error_temperature, safety   │
+        │   HYPOTHALAMUS (drives)       │  <── remedy + HPA axis
+        │  rest_need, task_load,        │
+        │  error_temperature, safety     │
         └───────────────┬───────────────┘
                         │
         ┌───────────────▼───────────────┐
@@ -62,10 +63,14 @@ adds:
         └───────────────┬───────────────┘
                         │
         ┌───────────────▼───────────────┐
-        │  EXPRESSION VECTOR (output) │
-        │  warmth, speed, cling,      │  <── remedy: expression biases
-        │  caution, verbosity         │
-        └─────────────────────────────┘
+        │  NEUROCHEMISTRY + POOLS       │  30+ transmitters, receptors, pools
+        └───────────────┬───────────────┘
+                        │
+        ┌───────────────▼───────────────┐
+        │  EXPRESSION VECTOR (output)   │
+        │  warmth, speed, cling,        │  <── remedy expression biases
+        │  caution, verbosity           │
+        └───────────────────────────────┘
 ```
 
 ---
@@ -88,11 +93,37 @@ This is the same representation used in recent LLM emotion-steering work
 | Module | Biological analog | Computational role |
 |--------|-------------------|----------------------|
 | `Amygdala` | appraisal | Fast valence/arousal/dominance deltas from events |
-| `Hippocampus` | episodic memory | Time-tagged buffer of recent events with VAD snapshots |
+| `Hippocampus` | episodic memory | Time-tagged buffer + LTP-learned event weights |
 | `Hypothalamus` | drives | Rest need, task load, error temperature, safety |
-| `Thalamus` | attention gate | Modulates event importance by novelty and safety |
-| `VTA/NAcc` | reward prediction error | Estimates prediction error after each event |
+| `Thalamus` | attention gate | ACh mode + novelty/safety gating |
+| `VTA/NAcc` | dopamine RPE | Dopaminergic reward prediction error |
 | `Cingulate` | conflict monitor | Detects high arousal + low dominance states |
+| `Prefrontal` | top-down regulation | Dominance suppresses amygdala threat response |
+| `HPA axis` | stress load | Cortisol + cytokine + adrenaline allostatic load |
+
+### Neurochemistry layer
+
+`limbic_hermes/neurochemistry.py` models the major neurotransmitters and
+neuromodulators that shape limbic computation:
+
+| Class | Signals |
+|-------|---------|
+| Monoamines | serotonin, dopamine, norepinephrine |
+| Amino acids | GABA, glutamate, glycine |
+| Cholinergic | acetylcholine |
+| Endocannabinoid | eCB (retrograde calming) |
+| Neuropeptides / hormones | oxytocin, vasopressin, cortisol, adrenaline, opioid, histamine, melatonin, BDNF, neuropeptide S, orexin, substance P |
+| Gaseous / trace | nitric oxide, phenylethylamine, tyramine |
+| Immune / interoceptive | cytokine load, heart rate variability, respiration rate |
+| Network | default mode network activity |
+
+Each transmitter:
+
+- Has a normalized level `[0, 1]`.
+- Is gated by finite **neurotransmitter pools** that deplete with use and
+  recover with rest.
+- Has **receptor sensitivity** that desensitizes under chronic high exposure.
+- Contributes to an **allostatic load** index of cumulative wear.
 
 ### Remedy temperament profile
 
@@ -136,6 +167,8 @@ bridge.observe("user_message", description="Patient asks about side effects")
 state = bridge.state()
 print(state["dominant_affect"])        # e.g. "calm", "anxious", "confident"
 print(state["expression_vector"])      # response-style knobs
+print(state["neurochemistry"]["dopamine"])
+print(state["allostatic_load"])
 ```
 
 ---
@@ -149,6 +182,8 @@ The limbic state can drive the hero angelfish in the aquarium dashboard:
 - `vad.arousal` → fin animation speed
 - `vad.dominance` → swimming posture (upright vs. drooping)
 - `drive.rest_need` → slows movement, dims glow
+- `neurochemistry.melatonin` → night-time dimming
+- `allostatic_load` → glitch / fatigue effects
 
 The limbic engine writes its state to `localStorage` or a small JSON file; the
 dashboard reads the same key.
@@ -172,19 +207,78 @@ dashboard reads the same key.
     "verbosity": 0.63,
     "hue_hint": 320
   },
+  "neurochemistry": {
+    "serotonin": 0.50,
+    "dopamine": 0.34,
+    "norepinephrine": 0.28,
+    "gaba": 0.50,
+    "glutamate": 0.40,
+    "acetylcholine": 0.40,
+    "cortisol": 0.10,
+    "dopamine_pool": 0.92,
+    "norepinephrine_pool": 0.92,
+    "d1_sensitivity": 1.0,
+    ...
+  },
+  "neurotransmitter_ratios": {
+    "dopamine_serotonin_ratio": 0.68,
+    "gaba_glutamate_ratio": 1.25
+  },
+  "allostatic_load": 0.16,
+  "circadian_hour": 12.0,
   "episodic_summary": [...]
 }
 ```
 
 ---
 
+## 31 biochemistry-grounded improvements
+
+See `TODO_LIMBIC.md` for the full list of testable prompts that guided this
+build. Implemented highlights include:
+
+1. Serotonin baseline stabilization
+2. Dopaminergic reward prediction error
+3. Noradrenergic arousal (tonic + phasic)
+4. GABAergic inhibition
+5. Glutamatergic excitation
+6. Acetylcholine attention mode
+7. Endocannabinoid retrograde calming
+8. Oxytocin social bonding
+9. Vasopressin defense
+10. Cortisol / HPA-axis stress load
+11. Adrenaline acute surge
+12. Opioid analgesia/reward buffering
+13. Histamine wakefulness
+14. Melatonin circadian rhythm
+15. Dopamine/serotonin and GABA/glutamate ratios
+16. Receptor desensitization
+17. Hippocampal LTP / learned expectations
+18. Prefrontal-amygdala top-down regulation
+19. Interoceptive signals (HRV, respiration)
+20. Neuroinflammatory cytokine load
+21. BDNF resilience/learning gating
+22. Nitric oxide diffusion/spread
+23. Trace amines (PEA, tyramine)
+24. Neuropeptide S alertness bursts
+25. Orexin wake/arousal stabilization
+26. Substance P pain salience
+27. Glycine inhibitory refinement
+28. Neurotransmitter pool depletion/recovery
+29. User-affect mirror entrainment
+30. Locus coeruleus phasic surprise bursts
+31. Default mode network suppression + allostatic load index
+
+---
+
 ## Extending
 
-- Add more remedy profiles in `core.REMEDY_LIBRARY`.
-- Add new event `kind`s and appraisal rules.
-- Replace the simple RPE estimate with TD-learning if the agent has a formal
-  reward stream.
-- Hook the `expression_vector` into the LLM prompt template to steer tone.
+- Add more remedy profiles in `limbic_hermes/profiles.py`.
+- Add new event `kind`s and appraisal rules in `core.py`.
+- Use `set_circadian_hour()` to align melatonin with real time of day.
+- Use `set_user_affect()` for user-affect entrainment.
+- Hook the `expression_vector` and `neurochemistry` fields into the LLM prompt
+  template or dashboard.
 
 ---
 

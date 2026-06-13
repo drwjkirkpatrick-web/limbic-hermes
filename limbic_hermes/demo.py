@@ -3,13 +3,14 @@ import argparse
 import json
 import time
 
-from limbic_hermes.core import LimbicSystem, REMEDY_LIBRARY
+from limbic_hermes.core import LimbicSystem
+from limbic_hermes.profiles import full_remedy_library
 
 
 def run_simulation(profile: str, steps: int, step_sec: float = 1.0) -> None:
     limbic = LimbicSystem(profile_name=profile)
     print(f"\nProfile: {profile}")
-    print("Available remedies:", list(REMEDY_LIBRARY.keys()))
+    print("Available remedies:", sorted(full_remedy_library().keys()))
 
     scenario = [
         ("user_message", "User asks a warm clinical question", 0.3, 0.2, 0.0, 0.5),
@@ -25,9 +26,19 @@ def run_simulation(profile: str, steps: int, step_sec: float = 1.0) -> None:
         kind, desc, v, a, d, imp = scenario[i % len(scenario)]
         now = time.time() + i * step_sec
         appraisal = limbic.observe_event(kind, desc, v, a, d, imp, now=now)
+        state = limbic.get_state()
+        neuro = state["neurochemistry"]
         print(f"\n[{i}] {kind}: {desc}")
         print("  appraisal ->", vars(appraisal))
-        print("  state     ->", json.dumps(limbic.get_state(), indent=2))
+        print("  VAD       ->", state["vad"])
+        print("  affect    ->", state["dominant_affect"])
+        print("  RPE       ->", state["reward_prediction_error"])
+        print("  allostatic->", state["allostatic_load"])
+        print("  key NTs   -> DA=%.2f 5HT=%.2f NE=%.2f CORT=%.2f OXY=%.2f" % (
+            neuro["dopamine"], neuro["serotonin"], neuro["norepinephrine"],
+            neuro["cortisol"], neuro["oxytocin"]))
+        print("  pools     -> DA_pool=%.2f NE_pool=%.2f 5HT_pool=%.2f" % (
+            neuro["dopamine_pool"], neuro["norepinephrine_pool"], neuro["serotonin_pool"]))
         # simulate real time
         if step_sec > 0:
             time.sleep(step_sec)

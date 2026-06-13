@@ -31,6 +31,8 @@ import time
 from dataclasses import asdict, dataclass, field
 from typing import Callable, Dict, List, Optional, Tuple
 
+from limbic_hermes.neurochemistry import NeurochemicalState, NeurochemistryEngine
+
 # ---------------------------------------------------------------------------
 # Constants and defaults
 # ---------------------------------------------------------------------------
@@ -191,6 +193,12 @@ class LimbicSystem:
         self.episodic_capacity = episodic_capacity
         self.reward_prediction_error: float = 0.0
         self.last_update: float = now if now is not None else time.time()
+        self.neurochemistry: NeurochemistryEngine = NeurochemistryEngine()
+        self.expected_reward: float = 0.0
+        self.user_affect_mirror: VAD = VAD(0.0, 0.2, 0.5)
+        self._previous_serotonin: float = 0.5
+        self.circadian_hour: float = 12.0
+        self.hippocampal_weights: Dict[str, float] = {}
 
     # -----------------------------------------------------------------------
     # Public API
@@ -220,6 +228,15 @@ class LimbicSystem:
             kind, raw_valence, raw_arousal, raw_dominance, importance
         )
 
+        # Neurochemical modulation of appraisal before applying
+        appraisal.valence_delta, appraisal.arousal_delta, appraisal.dominance_delta = (
+            self.neurochemistry.modulate_appraisal(
+                appraisal.valence_delta,
+                appraisal.arousal_delta,
+                appraisal.dominance_delta,
+            )
+        )
+
         # Thalamic gate: high attention novelty/safety biases can suppress weak
         # or unsafe inputs. The gate never blocks strongly tagged events.
         gated_importance = self._thalamic_gate(importance, appraisal)
@@ -241,8 +258,11 @@ class LimbicSystem:
         )
         self._store_event(event)
 
-        # VTA/NAcc reward prediction error (simple heuristic)
+        # VTA/NAcc reward prediction error (dopaminergic)
         self._update_rpe(appraisal, gated_importance)
+
+        # Update neurochemistry state
+        self._update_neurochemistry(appraisal, gated_importance, now=now)
 
         return appraisal
 
@@ -270,6 +290,14 @@ class LimbicSystem:
             dominance=self._toward(self.vad.dominance, base.dominance, decay),
         ).clamp()
 
+        # User affect mirror entrainment
+        mirror_rate = 0.02
+        self.vad = VAD(
+            valence=self._toward(self.vad.valence, self.user_affect_mirror.valence, mirror_rate * dt),
+            arousal=self._toward(self.vad.arousal, self.user_affect_mirror.arousal, mirror_rate * dt),
+            dominance=self._toward(self.vad.dominance, self.user_affect_mirror.dominance, mirror_rate * dt),
+        ).clamp()
+
         # Homeostatic drift
         self.drive.rest_need = min(1.0, self.drive.rest_need + 0.01 * p.rest_sensitivity * dt)
         self.drive.task_load = max(0.0, self.drive.task_load - 0.05 * dt)
@@ -288,6 +316,20 @@ class LimbicSystem:
         conflict = (1 - abs(self.vad.valence)) * self.vad.arousal * (1 - self.vad.dominance)
         if conflict > 0.6:
             self.vad.arousal = min(1.0, self.vad.arousal + 0.01 * dt)
+
+        # Advance neurochemistry state
+        self.neurochemistry.update(
+            dt=max(0.001, dt),
+            appraisal_valence=0.0,
+            appraisal_arousal=0.0,
+            appraisal_dominance=0.0,
+            drive_error_temperature=self.drive.error_temperature,
+            drive_rest_need=self.drive.rest_need,
+            drive_task_load=self.drive.task_load,
+            drive_safety=self.drive.safety,
+            surprise=0.0,
+            circadian_hour=self.circadian_hour,
+        )
 
     def add_task_load(self, amount: float = 0.1) -> None:
         """Call when a new concurrent task starts."""
@@ -312,6 +354,19 @@ class LimbicSystem:
             now=now,
         )
         self.drive.error_temperature = min(1.0, self.drive.error_temperature + severity)
+        # Update neurochemistry again now that error temperature is raised
+        self.neurochemistry.update(
+            dt=0.001,
+            appraisal_valence=0.0,
+            appraisal_arousal=0.0,
+            appraisal_dominance=0.0,
+            drive_error_temperature=self.drive.error_temperature,
+            drive_rest_need=self.drive.rest_need,
+            drive_task_load=self.drive.task_load,
+            drive_safety=self.drive.safety,
+            surprise=severity,
+            circadian_hour=self.circadian_hour,
+        )
 
     def report_success(self, magnitude: float = 0.5, now: Optional[float] = None) -> None:
         """Shortcut for success / reward events."""
@@ -331,9 +386,27 @@ class LimbicSystem:
         self.drive.error_temperature = max(0.0, self.drive.error_temperature - 0.1 * duration_sec)
         self.vad.arousal = max(0.0, self.vad.arousal - 0.1 * duration_sec)
         self.vad.dominance = min(1.0, self.vad.dominance + 0.05 * duration_sec)
+        # Restore neurotransmitter pools
+        n = self.neurochemistry.state
+        n.dopamine_pool = min(1.0, n.dopamine_pool + 0.1 * duration_sec)
+        n.norepinephrine_pool = min(1.0, n.norepinephrine_pool + 0.1 * duration_sec)
+        n.serotonin_pool = min(1.0, n.serotonin_pool + 0.08 * duration_sec)
+        n.acetylcholine_pool = min(1.0, n.acetylcholine_pool + 0.08 * duration_sec)
+        n.glutamate_pool = min(1.0, n.glutamate_pool + 0.08 * duration_sec)
+        n.gaba_pool = min(1.0, n.gaba_pool + 0.08 * duration_sec)
+        self.neurochemistry.state = n.clamp()
+
+    def set_user_affect(self, valence: float, arousal: float, dominance: float) -> None:
+        """Set the detected user affect to entrain toward."""
+        self.user_affect_mirror = VAD(valence, arousal, dominance).clamp()
+
+    def set_circadian_hour(self, hour: float) -> None:
+        """Set simulated hour-of-day (0-24) for melatonin/histamine."""
+        self.circadian_hour = max(0.0, min(24.0, hour))
 
     def get_state(self) -> Dict:
         """Return full serializable state snapshot."""
+        n = self.neurochemistry.state
         return {
             "profile": self.profile.name,
             "vad": asdict(self.vad),
@@ -342,6 +415,14 @@ class LimbicSystem:
             "dominant_affect": self.dominant_affect(),
             "expression_vector": self.expression_vector(),
             "episodic_summary": self.episodic_summary(),
+            "neurochemistry": n.to_dict(),
+            "neurotransmitter_ratios": {
+                "dopamine_serotonin_ratio": self._round(n.dopamine / max(0.01, n.serotonin)),
+                "gaba_glutamate_ratio": self._round(n.gaba / max(0.01, n.glutamate)),
+            },
+            "allostatic_load": self._round(self.neurochemistry.allostatic_load()),
+            "circadian_hour": self.circadian_hour,
+            "expected_reward": self._round(self.expected_reward),
             "timestamp": self.last_update,
         }
 
@@ -413,7 +494,11 @@ class LimbicSystem:
         is_threat = raw_valence < -0.2 or kind in {"error", "tool_failure", "conflict"}
         is_reward = raw_valence > 0.2 or kind in {"success", "task_complete", "praise"}
 
-        valence_delta = raw_valence
+        # Hippocampal learned expectation modulates raw input
+        expectation = self.hippocampal_weights.get(kind, 0.0)
+        expectation_bias = expectation * 0.3  # up to 30% attenuation of expected outcomes
+
+        valence_delta = raw_valence * (1.0 - expectation_bias if is_reward or is_threat else 1.0)
         arousal_delta = abs(raw_valence) * 0.3 + raw_arousal
         dominance_delta = raw_dominance
 
@@ -426,6 +511,12 @@ class LimbicSystem:
             arousal_delta *= p.reward_gain * 0.7
             dominance_delta += 0.1 * p.reward_gain
 
+        # Prefrontal-amygdala top-down regulation: high dominance suppresses threat response
+        if is_threat and self.vad.dominance > 0.6:
+            regulation = 0.3 * (self.vad.dominance - 0.6) / 0.4
+            valence_delta *= max(0.4, 1.0 - regulation)
+            arousal_delta *= max(0.4, 1.0 - regulation)
+
         return Appraisal(
             valence_delta=valence_delta,
             arousal_delta=arousal_delta,
@@ -435,23 +526,56 @@ class LimbicSystem:
             reward_flag=is_reward,
         )
 
+    def _update_rpe(self, appraisal: Appraisal, gated_importance: float) -> None:
+        """Dopaminergic reward prediction error estimate."""
+        observed = appraisal.valence_delta * gated_importance
+        self.reward_prediction_error = observed - self.expected_reward
+        # Update expected reward toward observed (learning rate modulated by BDNF)
+        learning_rate = 0.1 * (0.5 + 0.5 * self.neurochemistry.state.bdnf)
+        self.expected_reward += learning_rate * self.reward_prediction_error
+        self.expected_reward = max(-1.0, min(1.0, self.expected_reward))
+
+    def _update_neurochemistry(self, appraisal: Appraisal, gated_importance: float, now: Optional[float] = None) -> None:
+        """Advance neurochemical state in response to an event (event impact)."""
+        # Use a fixed event-processing timestep; background drift is handled in update()
+        event_dt = 1.0
+        if now is not None:
+            self.last_update = now
+        self.neurochemistry.update(
+            dt=event_dt,
+            appraisal_valence=appraisal.valence_delta,
+            appraisal_arousal=appraisal.arousal_delta,
+            appraisal_dominance=appraisal.dominance_delta,
+            drive_error_temperature=self.drive.error_temperature,
+            drive_rest_need=self.drive.rest_need,
+            drive_task_load=self.drive.task_load,
+            drive_safety=self.drive.safety,
+            surprise=abs(self.reward_prediction_error),
+            circadian_hour=self.circadian_hour,
+        )
+
     def _thalamic_gate(self, importance: float, appraisal: Appraisal) -> float:
-        """Attention gate: suppress low-importance or unsafe inputs."""
         p = self.profile
         novelty = 1.0 - self.drive.safety
-        gate = importance * (1.0 + p.attention_novelty_bias * novelty)
+        # Acetylcholine attention mode:
+        # Low ACh -> scanning/broad attention (higher novelty bias)
+        # High ACh -> focused attention (higher importance gating, lower novelty)
+        ach = self.neurochemistry.state.acetylcholine
+        ach_focus = 0.5 + 0.5 * ach  # 0.5 at baseline, 1.0 at high ACh
+        effective_novelty_bias = p.attention_novelty_bias * (1.0 - ach * 0.4)
+        gate = importance * (1.0 + effective_novelty_bias * novelty) * (0.8 + 0.4 * ach_focus)
         if appraisal.threat_flag:
             gate *= 1.0 + (1.0 - p.attention_safety_bias)
         return min(1.0, gate)
 
-    def _update_rpe(self, appraisal: Appraisal, gated_importance: float) -> None:
-        """Simple reward prediction error estimate."""
-        expected_reward = self.vad.valence * 0.2 + self.drive.safety * 0.1
-        observed = appraisal.valence_delta * gated_importance
-        self.reward_prediction_error = observed - expected_reward
-
     def _store_event(self, event: EpisodicEvent) -> None:
         self.episodic_buffer.append(event)
+        # Hippocampal LTP: strengthen weight for this event kind
+        if event.importance > 0.3:
+            prev = self.hippocampal_weights.get(event.kind, 0.0)
+            # BDNF gates learning rate
+            learning_rate = 0.05 * (0.3 + 0.7 * self.neurochemistry.state.bdnf)
+            self.hippocampal_weights[event.kind] = min(1.0, prev + learning_rate * event.importance)
         if len(self.episodic_buffer) > self.episodic_capacity:
             # Drop least important old event
             self.episodic_buffer.sort(key=lambda e: e.importance)
@@ -506,4 +630,17 @@ class LimbicSkillBridge:
         limbic = LimbicSystem(profile_name=data.get("profile", "default"))
         limbic.vad = VAD(**data.get("vad", {})).clamp()
         limbic.drive = DriveState(**data.get("drive", {})).clamp()
+        limbic.expected_reward = data.get("expected_reward", 0.0)
+        limbic.circadian_hour = data.get("circadian_hour", 12.0)
+        uam = data.get("user_affect_mirror", {})
+        limbic.user_affect_mirror = VAD(
+            uam.get("valence", 0.0),
+            uam.get("arousal", 0.2),
+            uam.get("dominance", 0.5),
+        ).clamp()
+        hw = data.get("hippocampal_weights", {})
+        limbic.hippocampal_weights = {str(k): float(v) for k, v in hw.items()}
+        nc = data.get("neurochemistry", {})
+        if nc:
+            limbic.neurochemistry.state = NeurochemicalState.from_dict(nc).clamp()
         return limbic
