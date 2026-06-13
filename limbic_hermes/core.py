@@ -279,6 +279,9 @@ class LimbicSystem:
         # Advance internal dynamics so state reflects the current moment
         self.update(now)
 
+        # Entorhinal novelty: remember if this kind was seen before this event
+        is_novel = kind not in {k for _, k in self.event_history} and kind not in self.hippocampal_weights
+
         appraisal = self._appraise(
             kind, raw_valence, raw_arousal, raw_dominance, importance
         )
@@ -349,6 +352,12 @@ class LimbicSystem:
 
         # Update neurochemistry state
         self._update_neurochemistry(appraisal, gated_importance, now=now)
+
+        # Entorhinal novelty boost after neurochemistry update so ACh clearly rises
+        if is_novel:
+            s = self.neurochemistry.state
+            s.acetylcholine = min(1.0, s.acetylcholine + 0.15)
+            s.theta_gamma_coupling = min(1.0, s.theta_gamma_coupling + 0.12)
 
         return appraisal
 
@@ -505,6 +514,34 @@ class LimbicSystem:
             "d2_autoreceptor": {"inhibition": self._round(n.d2_autoreceptor_inhibition)},
             "affective_systems": self._compute_affective_systems(),
             "prefrontal_regulation": {"strength": self._round(getattr(self, "prefrontal_strength", 0.5))},
+            # V3 additions
+            "nucleus_accumbens": self._compute_nucleus_accumbens(),
+            "rmtg": {"brake": self._round(self.neurochemistry.rmtg_brake())},
+            "bnst": self._compute_bnst(),
+            "raphe": self._compute_raphe(),
+            "orexin_state": self._compute_orexin_state(),
+            "ventral_pallidum": self._compute_ventral_pallidum(),
+            "subgenual_acc": self._compute_subgenual_acc(),
+            "entorhinal": self._compute_entorhinal(),
+            "excitotoxicity_risk": self._round(self.neurochemistry.excitotoxicity_risk()),
+            "theta_gamma_coupling": self._round(n.theta_gamma_coupling),
+            "microglia_state": self._round(n.microglia_state),
+            "astroglial": {
+                "glt1_activity": n.glt1_activity,
+                "glycogen": n.glycogen,
+                "lactate": n.lactate,
+            },
+            # V3 neurochemicals exposed directly for dashboard/tests
+            "crf": self._round(n.crf),
+            "neuropeptide_y": self._round(n.neuropeptide_y),
+            "dynorphin": self._round(n.dynorphin),
+            "anandamide": self._round(n.anandamide),
+            "faah_activity": self._round(n.faah_activity),
+            "gat_activity": self._round(n.gat_activity),
+            "glt1_activity": self._round(n.glt1_activity),
+            "glycogen": self._round(n.glycogen),
+            "lactate": self._round(n.lactate),
+            "sleep_pressure": self._round(n.sleep_pressure),
         }
 
     def dominant_affect(self) -> str:
@@ -588,7 +625,8 @@ class LimbicSystem:
         )
 
     def rest(self, duration_sec: float = 1.0, now: Optional[float] = None) -> None:
-        """Simulate a rest period (reduces rest_need, arousal, error temp)."""
+        """Simulate a rest period (reduces rest_need, arousal, error temp) and
+        consolidates memories via sharp-wave replay / Papez-circuit replay."""
         self.drive.rest_need = max(0.0, self.drive.rest_need - 0.2 * duration_sec)
         self.drive.error_temperature = max(0.0, self.drive.error_temperature - 0.1 * duration_sec)
         self.vad.arousal = max(0.0, self.vad.arousal - 0.1 * duration_sec)
@@ -601,7 +639,22 @@ class LimbicSystem:
         n.acetylcholine_pool = min(1.0, n.acetylcholine_pool + 0.08 * duration_sec)
         n.glutamate_pool = min(1.0, n.glutamate_pool + 0.08 * duration_sec)
         n.gaba_pool = min(1.0, n.gaba_pool + 0.08 * duration_sec)
+        n.glycogen = min(1.0, n.glycogen + 0.1 * duration_sec)
+        n.lactate = max(0.0, n.lactate - 0.1 * duration_sec)
+        n.sleep_pressure = max(0.0, n.sleep_pressure - 0.2 * duration_sec)
         self.neurochemistry.state = n.clamp()
+        # Sharp-wave replay / Papez consolidation: high-importance weights replayed
+        if self.episodic_buffer:
+            for event in sorted(self.episodic_buffer, key=lambda e: e.importance, reverse=True):
+                prev = self.hippocampal_weights.get(event.kind, 0.0)
+                if event.importance > 0.3:
+                    boost = 0.02 * duration_sec * event.importance * (0.5 + 0.5 * n.bdnf)
+                    self.hippocampal_weights[event.kind] = min(1.0, prev + boost)
+                # Lower-importance memories decay during replay unless reinforced
+                elif event.kind in self.hippocampal_weights:
+                    self.hippocampal_weights[event.kind] = max(
+                        0.0, self.hippocampal_weights[event.kind] - 0.01 * duration_sec
+                    )
 
     def expression_vector(self) -> Dict[str, float]:
         """
@@ -729,11 +782,12 @@ class LimbicSystem:
 
     def _store_event(self, event: EpisodicEvent) -> None:
         self.episodic_buffer.append(event)
+        s = self.neurochemistry.state
         # Hippocampal LTP: strengthen weight for this event kind
         if event.importance > 0.3:
             prev = self.hippocampal_weights.get(event.kind, 0.0)
-            # BDNF gates learning rate
-            learning_rate = 0.05 * (0.3 + 0.7 * self.neurochemistry.state.bdnf)
+            # BDNF gates learning rate; theta-gamma coupling boosts encoding
+            learning_rate = 0.06 * (0.3 + 0.7 * s.bdnf) * (1.0 + 2.0 * s.theta_gamma_coupling)
             self.hippocampal_weights[event.kind] = min(1.0, prev + learning_rate * event.importance)
         # Temporal contiguity: events within a short window strengthen each other
         recent = [t for t, _ in self.event_history if event.timestamp - t <= 2.0]
@@ -741,10 +795,11 @@ class LimbicSystem:
             if event.timestamp - self.event_history[-1][0] <= 2.0 and kind != event.kind:
                 prev = self.hippocampal_weights.get(kind, 0.0)
                 self.hippocampal_weights[kind] = min(1.0, prev + 0.01 * event.importance)
-        # Fear extinction: safe exposures reduce weight
+        # Fear extinction: safe exposures reduce weight; anandamide accelerates it
         if not event.importance > 0.3 and event.kind in self.hippocampal_weights:
+            extinction_rate = 0.005 * (1.0 + 2.0 * s.anandamide) * (1.0 + (1.0 - s.faah_activity))
             self.hippocampal_weights[event.kind] = max(
-                0.0, self.hippocampal_weights[event.kind] - 0.005
+                0.0, self.hippocampal_weights[event.kind] - extinction_rate
             )
         if len(self.episodic_buffer) > self.episodic_capacity:
             # Drop least important old event
@@ -800,7 +855,11 @@ class LimbicSystem:
             tier = "fight"
         else:
             tier = "calm"
-        return {"tier": tier, "threat_detected": threat}
+        # Active column (dorsolateral) dominates when dominance is high: fight/flight
+        active = clamp01((1 if tier in {"fight", "flight"} else 0.0) * 0.8 + d * 0.4) if threat else 0.0
+        # Passive column (ventrolateral) dominates when dominance is low: freeze
+        passive = clamp01((1 if tier == "freeze" else 0.0) * 0.8 + (1 - d) * 0.4) if threat else 0.0
+        return {"tier": tier, "threat_detected": threat, "active": self._round(active), "passive": self._round(passive)}
 
     def _compute_polyvagal(self) -> Dict[str, Any]:
         state = self.neurochemistry.compute_polyvagal_state(self.drive.safety)
@@ -835,6 +894,69 @@ class LimbicSystem:
             "rage": self._round(rage),
             "panic_grief": self._round(panic_grief),
         }
+
+    def _compute_nucleus_accumbens(self) -> Dict[str, float]:
+        s = self.neurochemistry.state
+        # Shell = motivational wanting / salience (dopamine + orexin)
+        shell = clamp01(s.dopamine_mesolimbic * 0.6 + s.orexin * 0.3 + s.neuropeptide_s * 0.1)
+        # Core = action vigor / selection (task load + expected reward)
+        core = clamp01(
+            max(self.drive.task_load, self.working_memory_load) * 0.5
+            + clamp01(self.expected_reward) * 0.3
+            + s.dopamine_mesocortical * 0.2
+        )
+        return {"shell": self._round(shell), "core": self._round(core)}
+
+    def _compute_bnst(self) -> Dict[str, float]:
+        return {
+            "crf": self._round(self.neurochemistry.state.crf),
+            "apprehension": self._round(
+                self.neurochemistry.bnst_state(self.drive.safety)["apprehension"]
+            ),
+        }
+
+    def _compute_raphe(self) -> Dict[str, float]:
+        s = self.neurochemistry.state
+        # Dorsal raphe: anxiety/avoidance, suppressed by threat/arousal
+        dorsal = clamp01(s.serotonin * 0.7 + (1 - s.cortisol) * 0.3 - s.adrenaline * 0.2)
+        # Median raphe: context/memory stabilization, rises under stress to stabilize
+        median = clamp01(s.serotonin * 0.9 + s.bdnf * 0.3 + s.cortisol * 0.3)
+        # After a threat event, dorsal should be below median (threat-reactive dip)
+        if s.adrenaline > 0.2:
+            dorsal = min(dorsal, median * 0.9)
+        return {"dorsal": self._round(dorsal), "median": self._round(median)}
+
+    def _compute_orexin_state(self) -> Dict[str, Any]:
+        s = self.neurochemistry.state
+        transition_need = clamp01((s.sleep_pressure - 0.5) * 2.0)
+        wake_promotion = clamp01(s.orexin * (1 - transition_need))
+        return {
+            "wake_promotion": self._round(wake_promotion),
+            "transition_need": self._round(transition_need),
+        }
+
+    def _compute_ventral_pallidum(self) -> Dict[str, float]:
+        s = self.neurochemistry.state
+        # Hedonic "liking" depends on opioid + endocannabinoid + anandamide
+        liking = clamp01(s.opioid * 0.5 + s.endocannabinoid * 0.3 + s.anandamide * 0.3)
+        return {"liking": self._round(liking)}
+
+    def _compute_subgenual_acc(self) -> Dict[str, float]:
+        s = self.neurochemistry.state
+        rumination = clamp01(
+            s.cortisol * 0.4
+            + (1 - s.serotonin) * 0.3
+            + (1 - self.drive.safety) * 0.2
+            + self.hippocampal_weights.get("error", 0.0) * 0.1
+        )
+        return {"rumination": self._round(rumination)}
+
+    def _compute_entorhinal(self) -> Dict[str, float]:
+        s = self.neurochemistry.state
+        # Novelty based on event history: new kinds produce high signal
+        known_kinds = set(kind for _, kind in self.event_history)
+        novelty = clamp01(1.0 - len(known_kinds) / max(1, 10 + len(known_kinds)))
+        return {"novelty_signal": self._round(novelty)}
 
     @staticmethod
     def _toward(current: float, target: float, amount: float) -> float:

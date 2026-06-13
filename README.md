@@ -120,11 +120,20 @@ This is the same representation used in recent LLM emotion-steering work
 | `Cingulate` | conflict monitor | Detects high arousal + low dominance states |
 | `Insula` | interoception | Body prediction error from HRV/respiration/cytokines |
 | `Septal` | social approach | Oxytocin/cortisol/safety gating of affiliative responses |
-| `PAG` | defensive tier | Freeze / flight / fight / calm classification |
+| `PAG` | defensive tier | Freeze / flight / fight / calm classification, active/passive columns |
 | `Lateral Habenula` | aversion learning | Inhibits dopamine on unexpected negative events |
+| `BNST` | sustained anxiety | CRF-driven apprehension that outlasts single events |
+| `Raphe` | serotonin subsystems | Dorsal (anxiety/avoidance) vs median (context stabilization) |
+| `Nucleus Accumbens` | reward/motivation | Shell (wanting/salience) vs core (action vigor) |
+| `RMTg` | dopamine brake | GABAergic brake on dopamine during aversion |
+| `Ventral Pallidum` | hedonic liking | Opioid/eCB/anandamide "liking" distinct from wanting |
+| `Subgenual ACC` | rumination | Cortisol/serotonin/safety-weighted negative recovery |
+| `Entorhinal Cortex` | novelty/context | Novel event kinds boost ACh and theta-gamma coupling |
 | `Prefrontal` | top-down regulation | Dominance suppresses amygdala threat response |
-| `HPA axis` | stress load | Cortisol + cytokine + adrenaline allostatic load |
+| `HPA axis` | stress load | Cortisol + CRF + cytokine + adrenaline allostatic load |
 | `Polyvagal` | autonomic state | Ventral vagal / sympathetic / dorsal vagal gating |
+| `Astroglial` | metabolic support | GLT-1 glutamate clearance, glycogen-lactate shuttle |
+| `Microglia` | neuroimmune memory | Primed glia amplify future cytokine spikes |
 
 ### Neurochemistry layer
 
@@ -139,9 +148,11 @@ neuromodulators that shape limbic computation:
 | Endocannabinoid | eCB (retrograde calming) |
 | Neuropeptides / hormones | oxytocin, vasopressin, cortisol, adrenaline, opioid, histamine, melatonin, BDNF, neuropeptide S, orexin, substance P, prolactin |
 | Gaseous / trace | nitric oxide, phenylethylamine, tyramine |
-| Immune / interoceptive | cytokine load, heart rate variability, respiration rate, respiration phase |
-| Network | default mode network activity |
-| Metabolic | metabolic_energy, glucose, working_memory_load |
+| Immune / interoceptive | cytokine load, microglia_state, heart rate variability, respiration rate, respiration phase |
+| Network | default mode network activity, theta-gamma coupling |
+| Metabolic | metabolic_energy, glucose, working_memory_load, glycogen, lactate |
+| Enzymatic / transport | MAO, COMT, SERT, FAAH, GAT, GLT-1 |
+| Sleep / arousal | sleep_pressure, orexin state |
 
 Each transmitter:
 
@@ -158,6 +169,13 @@ Each transmitter:
 - Has a **dopamine pathway split** into mesolimbic (motivation/salience) and
   mesocortical (cognitive control) streams.
 - Contributes to an **allostatic load** index of cumulative wear.
+- Has **CRF amplification** so sustained uncertainty raises HPA-axis responses.
+- Has **neuropeptide Y resilience** and **dynorphin/kappa counter-reward** arms.
+- Has **endocannabinoid / FAAH extinction gating** for fear-memory updating.
+- Has **GABA transporter (GAT)** and **GLT-1 astrocyte** clearance control.
+- Has **microglial priming** so prior neuroimmune load sensitizes future cytokine spikes.
+- Has **theta-gamma coupling** that boosts hippocampal encoding and replay.
+- Has **sharp-wave replay / Papez consolidation** during rest.
 
 ### Metabolic cofactor virtual controls
 
@@ -319,13 +337,14 @@ dashboard reads the same key.
 
 ## 60 biochemistry-grounded improvements
 
-The build is guided by two testable prompt documents:
+The build is guided by three testable prompt documents:
 
 - `TODO_LIMBIC.md` — the original 31 improvements
 - `TODO_LIMBIC_V2.md` — the follow-up 29 improvements
+- `TODO_LIMBIC_V3.md` — 20 more biochemistry-grounded modules
 
 Together they cover the major neurotransmitters, limbic nuclei, autonomic
-regulation, metabolic cofactors, and dashboard tooling.
+regulation, metabolic cofactors, glial clearance, and dashboard tooling.
 
 ### Batch 1: neurochemistry core (`TODO_LIMBIC.md`)
 

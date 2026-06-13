@@ -281,6 +281,20 @@
       <div class="metric-grid" id="neuroMetrics"></div>
     </section>
 
+    <section class="panel" style="grid-column: span 2;">
+      <h2>🧬 V3 Limbic Modules</h2>
+      <div class="two-col">
+        <div>
+          <h3 style="font-size:0.8rem;color:var(--accent2);margin:0.4rem 0 0.4rem;">Nuclei</h3>
+          <div class="metric-grid" id="nucleiMetrics"></div>
+        </div>
+        <div>
+          <h3 style="font-size:0.8rem;color:var(--accent2);margin:0.4rem 0 0.4rem;">Neuropeptides &amp; Glia</h3>
+          <div class="metric-grid" id="v3Metrics"></div>
+        </div>
+      </div>
+    </section>
+
     <section class="panel">
       <h2>🔒 Receptor Sensitivities &amp; Pools</h2>
       <div class="metric-grid" id="receptorMetrics"></div>
@@ -393,6 +407,42 @@
       document.getElementById('neuroMetrics').innerHTML = ntOrder
         .map(([k, label]) => metric(label, n[k]))
         .join('');
+
+      // V3 module displays
+      const nm = state.nucleus_accumbens || {};
+      const pag = state.pag || {};
+      const raph = state.raphe || {};
+      document.getElementById('nucleiMetrics').innerHTML = [
+        metric('NAcc Shell (wanting)', nm.shell),
+        metric('NAcc Core (action)', nm.core),
+        metric('RMTg Brake', (state.rmtg || {}).brake),
+        metric('BNST CRF', (state.bnst || {}).crf),
+        metric('BNST Apprehension', (state.bnst || {}).apprehension),
+        metric('Raphe Dorsal', raph.dorsal),
+        metric('Raphe Median', raph.median),
+        metric('PAG Active', pag.active),
+        metric('PAG Passive', pag.passive),
+        metric('Orexin Wake', (state.orexin_state || {}).wake_promotion),
+        metric('Ventral Pallidum (liking)', (state.ventral_pallidum || {}).liking),
+        metric('Subgenual ACC (rumination)', (state.subgenual_acc || {}).rumination),
+        metric('Entorhinal Novelty', (state.entorhinal || {}).novelty_signal),
+      ].join('');
+
+      document.getElementById('v3Metrics').innerHTML = [
+        metric('CRF', state.crf),
+        metric('Neuropeptide Y', state.neuropeptide_y),
+        metric('Dynorphin', state.dynorphin),
+        metric('Anandamide', state.anandamide),
+        metric('FAAH Activity', state.faah_activity),
+        metric('GAT Activity', state.gat_activity),
+        metric('GLT-1 Activity', state.glt1_activity),
+        metric('Microglia State', state.microglia_state),
+        metric('Excitotoxicity Risk', state.excitotoxicity_risk),
+        metric('Theta-Gamma Coupling', state.theta_gamma_coupling),
+        metric('Sleep Pressure', state.sleep_pressure),
+        metric('Glycogen', state.glycogen),
+        metric('Lactate', state.lactate),
+      ].join('');
 
       document.getElementById('receptorMetrics').innerHTML = [
         metric('D1 Sensitivity', n.d1_sensitivity),

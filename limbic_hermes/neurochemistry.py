@@ -85,6 +85,20 @@ class NeurochemicalState:
     # Prolactin / care
     prolactin: float = 0.3
 
+    # V3 additions
+    crf: float = 0.0                      # corticotropin-releasing factor stress neuropeptide
+    neuropeptide_y: float = 0.5         # NPY stress resilience
+    dynorphin: float = 0.1               # kappa opioid dysphoria
+    anandamide: float = 0.2              # endocannabinoid extinction gating
+    faah_activity: float = 0.5           # FAAH anandamide degradation
+    gat_activity: float = 0.5            # GABA transporter clearance
+    glt1_activity: float = 0.7           # astrocyte glutamate reuptake
+    glycogen: float = 0.8               # astrocyte glycogen reserve
+    lactate: float = 0.2                 # astrocyte lactate shuttle
+    microglia_state: float = 0.0         # primed neuroimmune state
+    sleep_pressure: float = 0.0          # homeostatic sleep drive
+    theta_gamma_coupling: float = 0.3    # oscillatory memory index
+
     # Composite / derived
     heart_rate_variability: float = 0.5
     respiration_rate: float = 0.3
@@ -143,6 +157,18 @@ class NeurochemicalState:
             dopamine_mesolimbic=clamp01(self.dopamine_mesolimbic),
             dopamine_mesocortical=clamp01(self.dopamine_mesocortical),
             prolactin=clamp01(self.prolactin),
+            crf=clamp01(self.crf),
+            neuropeptide_y=clamp01(self.neuropeptide_y),
+            dynorphin=clamp01(self.dynorphin),
+            anandamide=clamp01(self.anandamide),
+            faah_activity=clamp01(self.faah_activity),
+            gat_activity=clamp01(self.gat_activity),
+            glt1_activity=clamp01(self.glt1_activity),
+            glycogen=clamp01(self.glycogen),
+            lactate=clamp01(self.lactate),
+            microglia_state=clamp01(self.microglia_state),
+            sleep_pressure=clamp01(self.sleep_pressure),
+            theta_gamma_coupling=clamp01(self.theta_gamma_coupling),
             dmn_activity=clamp01(self.dmn_activity),
             d1_sensitivity=clamp01(self.d1_sensitivity),
             alpha1_sensitivity=clamp01(self.alpha1_sensitivity),
@@ -200,10 +226,10 @@ class NeurochemistryEngine:
 
         # --- Dopamine: updates from reward prediction error ---
         # Depletes with use, recovers with rest/success
-        dopamine_target = 0.3 + 0.4 * clamp01(surprise)
+        dopamine_target = 0.35 + 0.45 * clamp01(surprise)
         # Pool availability limits effective dopamine
         pool_factor = s.dopamine_pool
-        s.dopamine = self._toward(s.dopamine, dopamine_target * pool_factor, 0.04 * dt)
+        s.dopamine = self._toward(s.dopamine, dopamine_target * pool_factor, 0.05 * dt)
         # Deplete and recover pool
         if surprise > 0.2:
             s.dopamine_pool = max(0.2, s.dopamine_pool - 0.08 * dt)
@@ -280,13 +306,14 @@ class NeurochemistryEngine:
         # Add a circadian peak around 8 AM (phase 0.333)
         circadian_phase = (circadian_hour % 24.0) / 24.0
         car_peak = max(0.0, 1.0 - min(abs(circadian_phase - 0.333), 1.0 - abs(circadian_phase - 0.333)) * 6)
-        cortisol_input = 0.1 + 0.15 * car_peak + 0.4 * drive_error_temperature + 0.2 * (1 - drive_safety)
-        s.cortisol = self._toward(s.cortisol, cortisol_input, 0.015 * dt)
+        cortisol_input = 0.1 + 0.25 * car_peak + 0.4 * drive_error_temperature + 0.05 * (1 - drive_safety) + 0.3 * s.crf
+        s.cortisol = self._toward(s.cortisol, cortisol_input, 0.05 * dt)
 
         # --- Adrenaline: acute fight-or-flight, fast decay ---
         # Strong valence-negative surprises produce a rapid, large adrenaline surge.
+        # CRF pre-sensitization amplifies the adrenal response.
         valence_multiplier = 1.0 if appraisal_valence < -0.2 else 0.4
-        adr_target = 0.0 + 1.2 * clamp01(surprise) * valence_multiplier
+        adr_target = 0.0 + (1.2 + 0.8 * s.crf) * clamp01(surprise) * valence_multiplier
         s.adrenaline = self._toward(s.adrenaline, adr_target, 0.25 * dt)
 
         # --- Opioid: buffers pain, rises with comfort/safety ---
@@ -335,15 +362,21 @@ class NeurochemistryEngine:
         s.substance_p = self._toward(s.substance_p, sp_target, 0.03 * dt)
 
         # --- Cytokine load: neuroinflammation from chronic stress ---
-        cyto_target = 0.0 + 0.5 * s.cortisol + 0.2 * drive_error_temperature
-        s.cytokine_load = self._toward(s.cytokine_load, cyto_target, 0.01 * dt)
+        cyto_target = (
+            0.0
+            + 0.5 * s.cortisol
+            + 0.2 * drive_error_temperature
+            + 0.25 * clamp01(-appraisal_valence) * surprise
+            + 0.15 * (1 - drive_safety)
+        )
+        s.cytokine_load = self._toward(s.cytokine_load, cyto_target, 0.03 * dt)
 
         # --- Kynurenine pathway: inflammation shunts tryptophan away from serotonin ---
         s.kynurenine = self._toward(s.kynurenine, 0.1 + 0.7 * s.cytokine_load, 0.2 * dt)
         s.quinolinic_acid = self._toward(s.quinolinic_acid, 0.0 + 0.6 * s.kynurenine, 0.2 * dt)
         s.picolinic_acid = self._toward(s.picolinic_acid, 0.1 + 0.3 * s.kynurenine, 0.2 * dt)
-        glu_kyn = glu_target + 0.25 * s.quinolinic_acid
-        s.glutamate = self._toward(s.glutamate, glu_kyn, 0.05 * dt)
+        glu_kyn = glu_target + 0.45 * s.quinolinic_acid
+        s.glutamate = self._toward(s.glutamate, glu_kyn, 0.08 * dt)
         # Serotonin synthesis target is suppressed by high cytokine load
         serotonin_target = serotonin_target * (1 - 0.35 * s.cytokine_load)
         s.serotonin = self._toward(s.serotonin, clamp01(serotonin_target), 0.05 * dt)
@@ -399,7 +432,91 @@ class NeurochemistryEngine:
         else:
             s.glun2b_sensitivity = min(1.0, s.glun2b_sensitivity + 0.01 * dt)
 
+        # --- V3 additions ---------------------------------------------------
+
+        # CRF: sustained stress neuropeptide; amplified by uncertainty and cortisol
+        crf_target = 0.1 + 0.4 * (1 - drive_safety) + 0.4 * s.cortisol + 0.3 * drive_error_temperature
+        s.crf = self._toward(s.crf, crf_target, 0.08 * dt)
+        # Oxytocin and NPY suppress CRF
+        s.crf = max(0.0, s.crf - (s.oxytocin * 0.02 + s.neuropeptide_y * 0.03) * dt)
+
+        # Neuropeptide Y: resilience; rises with safety/success and suppresses anxiety circuits
+        npy_target = 0.3 + 0.4 * drive_safety + 0.2 * s.opioid - 0.2 * s.crf
+        s.neuropeptide_y = self._toward(s.neuropeptide_y, npy_target, 0.04 * dt)
+
+        # Dynorphin / kappa opioid: counter-reward on negative surprise
+        dyn_target = 0.1 + 0.7 * clamp01(-appraisal_valence) * clamp01(surprise)
+        s.dynorphin = self._toward(s.dynorphin, dyn_target, 0.08 * dt)
+        # Dynorphin actively suppresses dopamine / seeking
+        s.dopamine = max(0.0, s.dopamine - s.dynorphin * 0.1 * dt)
+        s.dopamine_mesolimbic = max(0.0, s.dopamine_mesolimbic - s.dynorphin * 0.08 * dt)
+
+        # Anandamide / FAAH extinction gating
+        # Anandamide rises with arousal and is degraded by FAAH
+        ana_target = 0.2 + 0.5 * appraisal_arousal + 0.2 * s.endocannabinoid
+        s.anandamide = self._toward(s.anandamide, ana_target, 0.06 * dt)
+        s.anandamide = max(0.0, s.anandamide - s.faah_activity * 0.15 * dt)
+        # FAAH itself rises with chronic stress
+        s.faah_activity = self._toward(s.faah_activity, 0.3 + 0.4 * s.cortisol, 0.02 * dt)
+
+        # GABA transporter (GAT) tone: high GAT clears GABA faster
+        s.gaba = max(0.0, s.gaba - s.gat_activity * 0.15 * dt)
+        s.gat_activity = self._toward(s.gat_activity, 0.4 + 0.3 * s.cortisol, 0.02 * dt)
+
+        # Astrocyte GLT-1 clears glutamate; low GLT-1 raises excitotoxicity risk
+        glt_clear = s.glt1_activity * 0.05 * dt
+        s.glutamate = max(0.0, s.glutamate - glt_clear)
+        s.glt1_activity = self._toward(s.glt1_activity, 0.5 + 0.3 * s.bdnf - 0.2 * s.cytokine_load, 0.02 * dt)
+
+        # Glycogen-lactate shuttle: task load consumes glycogen, produces lactate
+        if drive_task_load > 0.4:
+            s.glycogen = max(0.1, s.glycogen - 0.04 * drive_task_load * dt)
+            s.lactate = min(1.0, s.lactate + 0.05 * drive_task_load * dt)
+        else:
+            s.glycogen = min(1.0, s.glycogen + 0.03 * dt)
+            s.lactate = max(0.0, s.lactate - 0.04 * dt)
+
+        # Microglial priming: neuroimmune memory sensitizes future cytokine responses
+        micro_target = 0.0 + 0.6 * s.cytokine_load + 0.3 * s.cortisol
+        s.microglia_state = self._toward(s.microglia_state, micro_target, 0.02 * dt)
+        # Primed microglia amplify new cytokine spikes
+        if s.microglia_state > 0.2 and (surprise > 0.2 or drive_error_temperature > 0.3):
+            s.cytokine_load = min(1.0, s.cytokine_load + 0.08 * s.microglia_state * dt)
+
+        # Sleep pressure: rises with rest_need and time awake, reduced by rest
+        sleep_target = drive_rest_need * 0.8 + 0.1 * (1 - s.melatonin)
+        s.sleep_pressure = self._toward(s.sleep_pressure, sleep_target, 0.03 * dt)
+
+        # Orexin flip: high sleep pressure turns orexin from wake-promoting to transition
+        if s.sleep_pressure > 0.7:
+            s.histamine = self._toward(s.histamine, s.histamine * 0.7, 0.05 * dt)
+
+        # Theta-gamma coupling: rises with ACh and moderate NE, drops with very high arousal
+        tgc_target = 0.2 + 0.5 * s.acetylcholine + 0.3 * s.norepinephrine * (1 - s.norepinephrine)
+        s.theta_gamma_coupling = self._toward(s.theta_gamma_coupling, clamp01(tgc_target), 0.04 * dt)
+
         self.state = s.clamp()
+
+    def excitotoxicity_risk(self) -> float:
+        s = self.state
+        return clamp01(
+            s.glutamate * 0.4
+            + s.quinolinic_acid * 0.35
+            + (1 - s.glt1_activity) * 0.2
+            - s.gaba * 0.1
+        )
+
+    def rmtg_brake(self) -> float:
+        """GABAergic brake on dopamine during aversion."""
+        s = self.state
+        return clamp01(s.dynorphin * 0.5 + s.crf * 0.3 + (1 - s.dopamine) * 0.2)
+
+    def bnst_state(self, drive_safety: float) -> Dict[str, float]:
+        s = self.state
+        apprehension = clamp01(
+            s.crf * 0.5 + (1 - drive_safety) * 0.4 + s.cytokine_load * 0.2 - s.neuropeptide_y * 0.3
+        )
+        return {"crf": s.crf, "apprehension": apprehension}
 
     def modulate_appraisal(
         self,
