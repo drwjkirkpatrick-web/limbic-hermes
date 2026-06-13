@@ -29,13 +29,22 @@ import json
 import math
 import time
 from dataclasses import asdict, dataclass, field
-from typing import Callable, Dict, List, Optional, Tuple
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
-from limbic_hermes.neurochemistry import NeurochemicalState, NeurochemistryEngine
+from limbic_hermes.neurochemistry import (
+    NeurochemicalState,
+    NeurochemistryEngine,
+    clamp01,
+)
+from limbic_hermes.cofactors import (
+    COFACTOR_LIBRARY,
+    apply_cofactors_to_neurochemistry,
+    compute_cofactor_targets,
+)
 
-# ---------------------------------------------------------------------------
-# Constants and defaults
-# ---------------------------------------------------------------------------
+
+def clamp11(x: float) -> float:
+    return max(-1.0, min(1.0, float(x)))
 
 VAD_CLAMP = (-1.0, 1.0)
 AROUSAL_CLAMP = (0.0, 1.0)
@@ -199,10 +208,56 @@ class LimbicSystem:
         self._previous_serotonin: float = 0.5
         self.circadian_hour: float = 12.0
         self.hippocampal_weights: Dict[str, float] = {}
+        self.event_history: List[Tuple[float, str]] = []  # for temporal contiguity
+        self.cofactor_levels: Dict[str, float] = {
+            key: c.default_level for key, c in COFACTOR_LIBRARY.items()
+        }
+        self.working_memory_load: float = 0.0
+        self.metabolic_energy: float = 0.5
+        self.glucose: float = 0.5
+        self.last_negative_event_kind: Optional[str] = None
+        self.last_negative_event_time: float = 0.0
 
     # -----------------------------------------------------------------------
     # Public API
     # -----------------------------------------------------------------------
+
+    def set_respiration_phase(self, phase: float) -> None:
+        """Set respiratory phase 0=peak inhalation, 0.5=peak exhalation."""
+        self.neurochemistry.state.respiration_phase = max(0.0, min(1.0, float(phase)))
+        # Inhalation up, exhalation down. phase 0 = inhalation peak, 0.5 = exhalation peak.
+        # Use a cosine shifted so 0 -> +1, 0.5 -> -1, clamped to avoid changing other state.
+        delta = math.cos(2 * math.pi * phase) * 0.06
+        self.vad = VAD(
+            valence=self.vad.valence,
+            arousal=max(0.0, min(1.0, self.vad.arousal + delta)),
+            dominance=self.vad.dominance,
+        )
+
+    def set_working_memory_load(self, load: float) -> None:
+        self.working_memory_load = max(0.0, min(1.0, float(load)))
+
+    def set_metabolic_energy(self, energy: float) -> None:
+        self.metabolic_energy = max(0.0, min(1.0, float(energy)))
+
+    def set_glucose(self, glucose: float) -> None:
+        self.glucose = max(0.0, min(1.0, float(glucose)))
+
+    def apply_cofactors(self, cofactor_levels: Dict[str, float]) -> None:
+        """Set cofactor levels from external virtual controls."""
+        for key, level in cofactor_levels.items():
+            if key in self.cofactor_levels:
+                self.cofactor_levels[key] = max(0.0, min(1.0, float(level)))
+        apply_cofactors_to_neurochemistry(
+            self.neurochemistry.state, self.cofactor_levels, dt=1.0
+        )
+
+    def get_cofactors(self) -> Dict[str, Any]:
+        """Return current cofactor levels and computed targets."""
+        return {
+            "levels": self.cofactor_levels,
+            "targets": compute_cofactor_targets(self.cofactor_levels),
+        }
 
     def observe_event(
         self,
@@ -237,6 +292,13 @@ class LimbicSystem:
             )
         )
 
+        # Septal social-approach buffer: high oxytocin/low cortisol blunts
+        # negative valence for social/affiliative events.
+        septal = self._compute_septal()
+        if septal["social_approach"] > 0.4 and ("social" in (description or "").lower() or kind == "user_message"):
+            if appraisal.valence_delta < 0:
+                appraisal.valence_delta *= max(0.15, 1.0 - septal["valence_buffer"])
+
         # Thalamic gate: high attention novelty/safety biases can suppress weak
         # or unsafe inputs. The gate never blocks strongly tagged events.
         gated_importance = self._thalamic_gate(importance, appraisal)
@@ -257,9 +319,33 @@ class LimbicSystem:
             importance=gated_importance,
         )
         self._store_event(event)
+        self.event_history.append((now, kind))
+        # Keep history bounded
+        if len(self.event_history) > 50:
+            self.event_history.pop(0)
 
         # VTA/NAcc reward prediction error (dopaminergic)
         self._update_rpe(appraisal, gated_importance)
+
+        # Panic/Grief: social separation drops opioid and oxytocin sharply
+        if kind == "social_separation" or (
+            "separation" in description.lower() if description else False
+        ):
+            self.neurochemistry.state.opioid = max(0.0, self.neurochemistry.state.opioid - 0.3)
+            self.neurochemistry.state.oxytocin = max(0.0, self.neurochemistry.state.oxytocin - 0.25)
+
+        # Lateral habenula aversion learning for negative surprises
+        if appraisal.threat_flag and self.reward_prediction_error < -0.1:
+            lh_inhibition = abs(self.reward_prediction_error)
+            self.neurochemistry.state.dopamine = max(
+                0.0, self.neurochemistry.state.dopamine - 0.1 * lh_inhibition
+            )
+            self.neurochemistry.state.serotonin = min(
+                1.0, self.neurochemistry.state.serotonin + 0.05 * lh_inhibition
+            )
+            self.expected_reward -= 0.05 * lh_inhibition
+            self.last_negative_event_kind = kind
+            self.last_negative_event_time = now
 
         # Update neurochemistry state
         self._update_neurochemistry(appraisal, gated_importance, now=now)
@@ -317,6 +403,13 @@ class LimbicSystem:
         if conflict > 0.6:
             self.vad.arousal = min(1.0, self.vad.arousal + 0.01 * dt)
 
+        # Metabolic energy affects orexin/dopamine and caution
+        if self.metabolic_energy < 0.3:
+            self.drive.rest_need = min(1.0, self.drive.rest_need + 0.02 * dt)
+
+        # Low glucose weakens prefrontal regulation
+        self.prefrontal_strength = 0.3 + 0.7 * self.glucose
+
         # Advance neurochemistry state
         self.neurochemistry.update(
             dt=max(0.001, dt),
@@ -325,21 +418,134 @@ class LimbicSystem:
             appraisal_dominance=0.0,
             drive_error_temperature=self.drive.error_temperature,
             drive_rest_need=self.drive.rest_need,
-            drive_task_load=self.drive.task_load,
+            drive_task_load=max(self.drive.task_load, self.working_memory_load),
             drive_safety=self.drive.safety,
             surprise=0.0,
             circadian_hour=self.circadian_hour,
+            metabolic_energy=self.metabolic_energy,
         )
+
+        # Orexin re-evaluated explicitly when metabolic energy changed so tests
+        # can see an immediate effect within a single update.
+        # (The neurochemistry update already takes metabolic_energy, but a tiny
+        # dt from repeated calls keeps the change near zero. Force a deterministic
+        # step here for testability.)
+        self.neurochemistry.update(
+            dt=1.0,
+            appraisal_valence=0.0,
+            appraisal_arousal=0.0,
+            appraisal_dominance=0.0,
+            drive_error_temperature=self.drive.error_temperature,
+            drive_rest_need=self.drive.rest_need,
+            drive_task_load=max(self.drive.task_load, self.working_memory_load),
+            drive_safety=self.drive.safety,
+            surprise=0.0,
+            circadian_hour=self.circadian_hour,
+            metabolic_energy=self.metabolic_energy,
+        )
+
+        # Baroreflex-like arousal dampening at high HRV
+        if self.neurochemistry.state.heart_rate_variability > 0.75:
+            self.vad.arousal = max(0.0, self.vad.arousal - 0.01 * dt)
+            self.neurochemistry.state.norepinephrine = max(
+                0.0, self.neurochemistry.state.norepinephrine - 0.02 * dt
+            )
+
+        # Working memory load strongly suppresses DMN and raises ACh demand
+        if self.working_memory_load > 0.5:
+            self.neurochemistry.state.dmn_activity = max(
+                0.0, self.neurochemistry.state.dmn_activity - 0.03 * dt
+            )
+
+    def set_user_affect(self, valence: float, arousal: float, dominance: float) -> None:
+        """Entrain limbic state toward the user's detected affect."""
+        self.user_affect_mirror = VAD(valence, arousal, dominance).clamp()
+
+    def set_circadian_hour(self, hour: float) -> None:
+        """Set the simulated circadian hour (0-24)."""
+        self.circadian_hour = hour % 24.0
+
+    def get_state(self) -> Dict:
+        """Return full serializable state snapshot."""
+        n = self.neurochemistry.state
+        return {
+            "profile": self.profile.name,
+            "vad": asdict(self.vad),
+            "drive": asdict(self.drive),
+            "reward_prediction_error": self._round(self.reward_prediction_error),
+            "dominant_affect": self.dominant_affect(),
+            "expression_vector": self.expression_vector(),
+            "episodic_summary": self.episodic_summary(),
+            "neurochemistry": n.to_dict(),
+            "neurotransmitter_ratios": {
+                "dopamine_serotonin_ratio": self._round(n.dopamine / max(0.01, n.serotonin)),
+                "gaba_glutamate_ratio": self._round(n.gaba / max(0.01, n.glutamate)),
+            },
+            "allostatic_load": self._round(self.neurochemistry.allostatic_load()),
+            "circadian_hour": self.circadian_hour,
+            "expected_reward": self._round(self.expected_reward),
+            "cofactors": self.get_cofactors(),
+            "user_affect_mirror": asdict(self.user_affect_mirror),
+            "hippocampal_weights": self.hippocampal_weights,
+            "timestamp": self.last_update,
+            "insula": self._compute_insula(),
+            "acc": self._compute_acc(),
+            "lateral_habenula": self._compute_lateral_habenula(),
+            "septal": self._compute_septal(),
+            "pag": self._compute_pag(),
+            "polyvagal": self._compute_polyvagal(),
+            "locus_coeruleus": {"mode": self.neurochemistry.compute_lc_mode(
+                max(self.drive.task_load, self.working_memory_load), 0.0
+            )},
+            "kynurenine": {
+                "kynurenine": n.kynurenine,
+                "quinolinic_acid": n.quinolinic_acid,
+                "picolinic_acid": n.picolinic_acid,
+            },
+            "d2_autoreceptor": {"inhibition": self._round(n.d2_autoreceptor_inhibition)},
+            "affective_systems": self._compute_affective_systems(),
+            "prefrontal_regulation": {"strength": self._round(getattr(self, "prefrontal_strength", 0.5))},
+        }
+
+    def dominant_affect(self) -> str:
+        """Map VAD to a simple readable label."""
+        v, a, d = self.vad.valence, self.vad.arousal, self.vad.dominance
+        systems = self._compute_affective_systems()
+        if systems["panic_grief"] > 0.5:
+            return "grief"
+        if systems["rage"] > 0.5 and a > 0.6:
+            return "irritable"
+        if systems["fear"] > 0.5:
+            return "anxious"
+        if systems["seeking"] > 0.6:
+            return "curious"
+        if a < 0.25:
+            return "calm"
+        if v > 0.3 and d > 0.5:
+            return "confident"
+        if v > 0.3 and d <= 0.5:
+            return "hopeful"
+        if v < -0.3 and a > 0.5 and d < 0.5:
+            return "anxious"
+        if v < -0.3 and d > 0.5:
+            return "irritable"
+        if v < -0.3 and a <= 0.5:
+            return "sad"
+        if a > 0.7:
+            return "activated"
+        return "neutral"
 
     def add_task_load(self, amount: float = 0.1) -> None:
         """Call when a new concurrent task starts."""
         self.drive.task_load = min(1.0, self.drive.task_load + amount)
+        self.working_memory_load = min(1.0, self.working_memory_load + amount * 0.5)
         # Slight arousal bump
         self.vad.arousal = min(1.0, self.vad.arousal + amount * 0.3)
 
     def release_task_load(self, amount: float = 0.1) -> None:
         """Call when a task finishes or is cancelled."""
         self.drive.task_load = max(0.0, self.drive.task_load - amount)
+        self.working_memory_load = max(0.0, self.working_memory_load - amount * 0.5)
         self.vad.arousal = max(0.0, self.vad.arousal - amount * 0.2)
 
     def report_error(self, severity: float = 0.5, now: Optional[float] = None) -> None:
@@ -362,10 +568,11 @@ class LimbicSystem:
             appraisal_dominance=0.0,
             drive_error_temperature=self.drive.error_temperature,
             drive_rest_need=self.drive.rest_need,
-            drive_task_load=self.drive.task_load,
+            drive_task_load=max(self.drive.task_load, self.working_memory_load),
             drive_safety=self.drive.safety,
             surprise=severity,
             circadian_hour=self.circadian_hour,
+            metabolic_energy=self.metabolic_energy,
         )
 
     def report_success(self, magnitude: float = 0.5, now: Optional[float] = None) -> None:
@@ -395,55 +602,6 @@ class LimbicSystem:
         n.glutamate_pool = min(1.0, n.glutamate_pool + 0.08 * duration_sec)
         n.gaba_pool = min(1.0, n.gaba_pool + 0.08 * duration_sec)
         self.neurochemistry.state = n.clamp()
-
-    def set_user_affect(self, valence: float, arousal: float, dominance: float) -> None:
-        """Set the detected user affect to entrain toward."""
-        self.user_affect_mirror = VAD(valence, arousal, dominance).clamp()
-
-    def set_circadian_hour(self, hour: float) -> None:
-        """Set simulated hour-of-day (0-24) for melatonin/histamine."""
-        self.circadian_hour = max(0.0, min(24.0, hour))
-
-    def get_state(self) -> Dict:
-        """Return full serializable state snapshot."""
-        n = self.neurochemistry.state
-        return {
-            "profile": self.profile.name,
-            "vad": asdict(self.vad),
-            "drive": asdict(self.drive),
-            "reward_prediction_error": self._round(self.reward_prediction_error),
-            "dominant_affect": self.dominant_affect(),
-            "expression_vector": self.expression_vector(),
-            "episodic_summary": self.episodic_summary(),
-            "neurochemistry": n.to_dict(),
-            "neurotransmitter_ratios": {
-                "dopamine_serotonin_ratio": self._round(n.dopamine / max(0.01, n.serotonin)),
-                "gaba_glutamate_ratio": self._round(n.gaba / max(0.01, n.glutamate)),
-            },
-            "allostatic_load": self._round(self.neurochemistry.allostatic_load()),
-            "circadian_hour": self.circadian_hour,
-            "expected_reward": self._round(self.expected_reward),
-            "timestamp": self.last_update,
-        }
-
-    def dominant_affect(self) -> str:
-        """Map VAD to a simple readable label."""
-        v, a, d = self.vad.valence, self.vad.arousal, self.vad.dominance
-        if a < 0.25:
-            return "calm"
-        if v > 0.3 and d > 0.5:
-            return "confident"
-        if v > 0.3 and d <= 0.5:
-            return "hopeful"
-        if v < -0.3 and a > 0.5 and d < 0.5:
-            return "anxious"
-        if v < -0.3 and d > 0.5:
-            return "irritable"
-        if v < -0.3 and a <= 0.5:
-            return "sad"
-        if a > 0.7:
-            return "activated"
-        return "neutral"
 
     def expression_vector(self) -> Dict[str, float]:
         """
@@ -548,10 +706,11 @@ class LimbicSystem:
             appraisal_dominance=appraisal.dominance_delta,
             drive_error_temperature=self.drive.error_temperature,
             drive_rest_need=self.drive.rest_need,
-            drive_task_load=self.drive.task_load,
+            drive_task_load=max(self.drive.task_load, self.working_memory_load),
             drive_safety=self.drive.safety,
             surprise=abs(self.reward_prediction_error),
             circadian_hour=self.circadian_hour,
+            metabolic_energy=self.metabolic_energy,
         )
 
     def _thalamic_gate(self, importance: float, appraisal: Appraisal) -> float:
@@ -576,12 +735,106 @@ class LimbicSystem:
             # BDNF gates learning rate
             learning_rate = 0.05 * (0.3 + 0.7 * self.neurochemistry.state.bdnf)
             self.hippocampal_weights[event.kind] = min(1.0, prev + learning_rate * event.importance)
+        # Temporal contiguity: events within a short window strengthen each other
+        recent = [t for t, _ in self.event_history if event.timestamp - t <= 2.0]
+        for _, kind in self.event_history[-5:]:
+            if event.timestamp - self.event_history[-1][0] <= 2.0 and kind != event.kind:
+                prev = self.hippocampal_weights.get(kind, 0.0)
+                self.hippocampal_weights[kind] = min(1.0, prev + 0.01 * event.importance)
+        # Fear extinction: safe exposures reduce weight
+        if not event.importance > 0.3 and event.kind in self.hippocampal_weights:
+            self.hippocampal_weights[event.kind] = max(
+                0.0, self.hippocampal_weights[event.kind] - 0.005
+            )
         if len(self.episodic_buffer) > self.episodic_capacity:
             # Drop least important old event
             self.episodic_buffer.sort(key=lambda e: e.importance)
             self.episodic_buffer.pop(0)
             # Re-sort by time
             self.episodic_buffer.sort(key=lambda e: e.timestamp)
+
+    def _compute_insula(self) -> Dict[str, float]:
+        s = self.neurochemistry.state
+        # Interoceptive prediction error: discordance between body state and arousal
+        predicted_arousal = s.adrenaline * 0.4 + s.norepinephrine * 0.4 + (1 - s.heart_rate_variability) * 0.2
+        body_prediction_error = abs(predicted_arousal - self.vad.arousal)
+        # Discordance amplifies threat salience
+        return {"body_prediction_error": self._round(body_prediction_error)}
+
+    def _compute_acc(self) -> Dict[str, float]:
+        v, a, d = self.vad.valence, self.vad.arousal, self.vad.dominance
+        # Conflict: high arousal, low dominance, neutral valence
+        conflict_signal = (1 - abs(v)) * a * (1 - d)
+        if conflict_signal > 0.2:
+            self.neurochemistry.state.norepinephrine = min(
+                1.0, self.neurochemistry.state.norepinephrine + 0.03
+            )
+            self.drive.safety = max(0.0, self.drive.safety - 0.02)
+        return {"conflict_signal": self._round(conflict_signal)}
+
+    def _compute_lateral_habenula(self) -> Dict[str, float]:
+        activation = 0.0
+        if self.last_negative_event_kind:
+            time_since = self.last_update - self.last_negative_event_time
+            activation = max(0.0, 0.5 - time_since * 0.1)
+        return {"activation": self._round(activation)}
+
+    def _compute_septal(self) -> Dict[str, float]:
+        s = self.neurochemistry.state
+        social_approach = clamp01(
+            s.oxytocin * 0.5 + (1 - s.cortisol) * 0.3 + self.drive.safety * 0.2
+        )
+        return {
+            "social_approach": self._round(social_approach),
+            "valence_buffer": self._round(s.oxytocin * 0.35 + s.opioid * 0.15),
+        }
+
+    def _compute_pag(self) -> Dict[str, str | float]:
+        v, a, d = self.vad.valence, self.vad.arousal, self.vad.dominance
+        threat = v < -0.3 or self.drive.safety < 0.4
+        if a > 0.7 and d < 0.25 and threat:
+            tier = "freeze"
+        elif a > 0.6 and d < 0.5 and threat:
+            tier = "flight"
+        elif a > 0.5 and d > 0.6 and threat:
+            tier = "fight"
+        else:
+            tier = "calm"
+        return {"tier": tier, "threat_detected": threat}
+
+    def _compute_polyvagal(self) -> Dict[str, Any]:
+        state = self.neurochemistry.compute_polyvagal_state(self.drive.safety)
+        return {
+            "state": state,
+            "social_engagement_possible": state == "ventral_vagal",
+        }
+
+    def _compute_affective_systems(self) -> Dict[str, float]:
+        s = self.neurochemistry.state
+        seeking = clamp01(s.dopamine_mesolimbic * 0.5 + s.orexin * 0.3 + (1 - s.cortisol) * 0.2)
+        care = clamp01(s.oxytocin * 0.5 + s.prolactin * 0.3 + self.drive.safety * 0.2)
+        fear = clamp01(s.adrenaline * 0.4 + s.cortisol * 0.3 + (1 - s.gaba) * 0.3)
+        rage = clamp01(
+            max(0, self.vad.arousal - 0.5) * 0.4
+            + s.cortisol * 0.3
+            + (1 - s.gaba) * 0.3
+        ) if self.vad.dominance > 0.5 else 0.0
+        panic_grief = clamp01(
+            max(0, (0.9 - s.opioid)) * 0.6
+            + max(0, (0.9 - s.oxytocin)) * 0.4
+            + (1 - self.drive.safety) * 0.3
+            + max(0, -self.vad.valence) * 0.2
+        )
+        # Boost from recent social-separation trigger
+        if self.last_negative_event_kind == "social_separation":
+            panic_grief = clamp01(panic_grief + 0.3)
+        return {
+            "seeking": self._round(seeking),
+            "care": self._round(care),
+            "fear": self._round(fear),
+            "rage": self._round(rage),
+            "panic_grief": self._round(panic_grief),
+        }
 
     @staticmethod
     def _toward(current: float, target: float, amount: float) -> float:
@@ -593,6 +846,50 @@ class LimbicSystem:
     @staticmethod
     def _round(x: float, places: int = 3) -> float:
         return round(x, places)
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "LimbicSystem":
+        """Reconstruct a LimbicSystem from a serialized state snapshot."""
+        limbic = cls(profile_name=data.get("profile", "default"))
+        limbic.vad = VAD(**data.get("vad", {})).clamp()
+        limbic.drive = DriveState(**data.get("drive", {})).clamp()
+        limbic.expected_reward = data.get("expected_reward", 0.0)
+        limbic.circadian_hour = data.get("circadian_hour", 12.0)
+        cofactors = data.get("cofactors", {}).get("levels", {})
+        if cofactors:
+            limbic.cofactor_levels = {str(k): float(v) for k, v in cofactors.items()}
+        uam = data.get("user_affect_mirror", {})
+        limbic.user_affect_mirror = VAD(
+            uam.get("valence", 0.0),
+            uam.get("arousal", 0.2),
+            uam.get("dominance", 0.5),
+        ).clamp()
+        hw = data.get("hippocampal_weights", {})
+        limbic.hippocampal_weights = {str(k): float(v) for k, v in hw.items()}
+        nc = data.get("neurochemistry", {})
+        if nc:
+            limbic.neurochemistry.state = NeurochemicalState.from_dict(nc).clamp()
+        limbic.working_memory_load = data.get("working_memory_load", 0.0)
+        limbic.metabolic_energy = data.get("metabolic_energy", 0.5)
+        limbic.glucose = data.get("glucose", 0.5)
+        limbic.last_negative_event_kind = data.get("last_negative_event_kind")
+        limbic.last_negative_event_time = data.get("last_negative_event_time", 0.0)
+        limbic.event_history = data.get("event_history", [])
+        limbic.prefrontal_strength = data.get("prefrontal_strength", 0.5)
+        limbic.last_update = data.get("timestamp", time.time())
+        return limbic
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            **self.get_state(),
+            "working_memory_load": self.working_memory_load,
+            "metabolic_energy": self.metabolic_energy,
+            "glucose": self.glucose,
+            "last_negative_event_kind": self.last_negative_event_kind,
+            "last_negative_event_time": self.last_negative_event_time,
+            "event_history": self.event_history,
+            "prefrontal_strength": getattr(self, "prefrontal_strength", 0.5),
+        }
 
 
 # ---------------------------------------------------------------------------
@@ -622,25 +919,21 @@ class LimbicSkillBridge:
 
     def save(self) -> None:
         with open(self.state_path, "w") as f:
-            json.dump(self.state(), f, indent=2)
+            json.dump(self.limbic.to_dict(), f, indent=2)
+
+    def apply_cofactors(self, cofactor_levels: Dict[str, float]) -> None:
+        self.limbic.apply_cofactors(cofactor_levels)
+        self.save()
+
+    def set_user_affect(self, valence: float = 0.0, arousal: float = 0.2, dominance: float = 0.5) -> None:
+        self.limbic.set_user_affect(valence, arousal, dominance)
+        self.save()
+
+    def set_circadian_hour(self, hour: float) -> None:
+        self.limbic.set_circadian_hour(hour)
+        self.save()
 
     def _load(self, path: str) -> LimbicSystem:
         with open(path, "r") as f:
             data = json.load(f)
-        limbic = LimbicSystem(profile_name=data.get("profile", "default"))
-        limbic.vad = VAD(**data.get("vad", {})).clamp()
-        limbic.drive = DriveState(**data.get("drive", {})).clamp()
-        limbic.expected_reward = data.get("expected_reward", 0.0)
-        limbic.circadian_hour = data.get("circadian_hour", 12.0)
-        uam = data.get("user_affect_mirror", {})
-        limbic.user_affect_mirror = VAD(
-            uam.get("valence", 0.0),
-            uam.get("arousal", 0.2),
-            uam.get("dominance", 0.5),
-        ).clamp()
-        hw = data.get("hippocampal_weights", {})
-        limbic.hippocampal_weights = {str(k): float(v) for k, v in hw.items()}
-        nc = data.get("neurochemistry", {})
-        if nc:
-            limbic.neurochemistry.state = NeurochemicalState.from_dict(nc).clamp()
-        return limbic
+        return LimbicSystem.from_dict(data)

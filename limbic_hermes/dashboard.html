@@ -1,0 +1,545 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Limbic Hermes Dashboard</title>
+  <style>
+    :root {
+      --bg: #0d0f17;
+      --panel: rgba(20, 24, 36, 0.82);
+      --panel-border: rgba(90, 120, 180, 0.22);
+      --accent: #6ca0ff;
+      --accent2: #b06cff;
+      --text: #e6ebf5;
+      --muted: #9aa6bf;
+      --danger: #ff6b6b;
+      --ok: #6bffb0;
+      --warn: #ffd36b;
+      --font: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; padding: 0;
+      font-family: var(--font);
+      background:
+        radial-gradient(ellipse at 20% 0%, rgba(108,160,255,0.10) 0%, transparent 45%),
+        radial-gradient(ellipse at 80% 100%, rgba(176,108,255,0.10) 0%, transparent 45%),
+        var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+    }
+    header {
+      position: sticky; top: 0; z-index: 10;
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 0.9rem 1.2rem;
+      background: rgba(13,15,23,0.75);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--panel-border);
+    }
+    header h1 { margin: 0; font-size: 1.15rem; letter-spacing: 0.02em; }
+    header .subtitle { color: var(--muted); font-size: 0.78rem; margin-left: 0.4rem; }
+    header .controls { display: flex; gap: 0.5rem; align-items: center; }
+    button {
+      background: rgba(108,160,255,0.14);
+      border: 1px solid var(--panel-border);
+      color: var(--text);
+      border-radius: 0.4rem;
+      padding: 0.45rem 0.75rem;
+      cursor: pointer;
+      font-size: 0.85rem;
+      transition: background 0.15s;
+    }
+    button:hover { background: rgba(108,160,255,0.28); }
+    button.danger { color: var(--danger); border-color: rgba(255,107,107,0.35); }
+    button.danger:hover { background: rgba(255,107,107,0.18); }
+    main {
+      padding: 1rem;
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+      gap: 1rem;
+      max-width: 1800px;
+      margin: 0 auto;
+    }
+    .panel {
+      background: var(--panel);
+      border: 1px solid var(--panel-border);
+      border-radius: 0.85rem;
+      padding: 1rem;
+      backdrop-filter: blur(8px);
+      box-shadow: 0 8px 32px rgba(0,0,0,0.18);
+      min-height: 220px;
+    }
+    .panel h2 {
+      margin: 0 0 0.8rem 0;
+      font-size: 0.95rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--accent);
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .panel h2 .badge {
+      font-size: 0.65rem;
+      background: rgba(255,255,255,0.08);
+      padding: 0.2rem 0.45rem;
+      border-radius: 0.3rem;
+      color: var(--muted);
+      text-transform: none;
+      letter-spacing: 0;
+    }
+    .metric-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(90px, 1fr));
+      gap: 0.6rem;
+    }
+    .metric {
+      background: rgba(255,255,255,0.03);
+      border-radius: 0.5rem;
+      padding: 0.6rem;
+      text-align: center;
+    }
+    .metric .label { font-size: 0.68rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; }
+    .metric .value { font-size: 1.25rem; font-weight: 700; margin-top: 0.25rem; }
+    .bar {
+      height: 6px;
+      background: rgba(255,255,255,0.08);
+      border-radius: 3px;
+      margin-top: 0.35rem;
+      overflow: hidden;
+    }
+    .bar .fill {
+      height: 100%;
+      border-radius: 3px;
+      background: linear-gradient(90deg, var(--accent), var(--accent2));
+      width: 0%;
+      transition: width 0.4s ease;
+    }
+    .bar .fill.negative { background: linear-gradient(90deg, var(--danger), var(--warn)); }
+
+    .vad-plot {
+      display: grid; grid-template-columns: 1fr auto 1fr; gap: 0.4rem;
+      align-items: center; margin-top: 0.5rem;
+    }
+    .axis-label { font-size: 0.7rem; color: var(--muted); text-align: center; }
+    .axis-name { font-size: 0.75rem; color: var(--accent); font-weight: 600; }
+    .vad-cross {
+      width: 140px; height: 140px;
+      border: 1px solid var(--panel-border);
+      border-radius: 0.6rem;
+      position: relative;
+      background: rgba(255,255,255,0.02);
+      margin: 0 auto;
+    }
+    .vad-cross .dot {
+      position: absolute;
+      width: 10px; height: 10px;
+      border-radius: 50%;
+      background: var(--ok);
+      box-shadow: 0 0 12px var(--ok);
+      transform: translate(-50%, -50%);
+      transition: left 0.3s, bottom 0.3s;
+    }
+    .vad-cross .crosshair-x, .vad-cross .crosshair-y {
+      position: absolute; background: var(--panel-border);
+    }
+    .vad-cross .crosshair-x { top: 50%; left: 0; right: 0; height: 1px; }
+    .vad-cross .crosshair-y { left: 50%; top: 0; bottom: 0; width: 1px; }
+
+    .slider-row {
+      display: flex; align-items: center; gap: 0.7rem;
+      margin: 0.5rem 0;
+    }
+    .slider-row label {
+      flex: 0 0 130px;
+      font-size: 0.78rem;
+      color: var(--muted);
+    }
+    .slider-row input[type=range] {
+      flex: 1;
+      accent-color: var(--accent);
+    }
+    .slider-row .value {
+      flex: 0 0 42px;
+      text-align: right;
+      font-variant-numeric: tabular-nums;
+      font-size: 0.78rem;
+    }
+
+    .event-list {
+      max-height: 220px;
+      overflow-y: auto;
+      font-size: 0.78rem;
+    }
+    .event-item {
+      padding: 0.4rem 0;
+      border-bottom: 1px solid rgba(255,255,255,0.05);
+      display: flex; gap: 0.5rem; align-items: baseline;
+    }
+    .event-item .kind {
+      font-weight: 600;
+      color: var(--accent);
+      min-width: 90px;
+    }
+    .event-item .desc { color: var(--muted); flex: 1; }
+    .event-item .ts { color: var(--muted); font-size: 0.65rem; }
+
+    .expression-chips {
+      display: flex; flex-wrap: wrap; gap: 0.4rem;
+      margin-top: 0.5rem;
+    }
+    .chip {
+      background: rgba(108,160,255,0.12);
+      border: 1px solid rgba(108,160,255,0.25);
+      border-radius: 0.35rem;
+      padding: 0.3rem 0.55rem;
+      font-size: 0.72rem;
+    }
+
+    .state-json {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 0.7rem;
+      background: rgba(0,0,0,0.25);
+      border-radius: 0.5rem;
+      padding: 0.6rem;
+      max-height: 260px;
+      overflow: auto;
+      white-space: pre-wrap;
+      color: #c2c9db;
+    }
+
+    .two-col {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1rem;
+    }
+    @media (max-width: 760px) {
+      .two-col { grid-template-columns: 1fr; }
+      main { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div>
+      <h1>🧠 Limbic Hermes Dashboard</h1>
+      <span class="subtitle">Real-time neurochemistry + affective state monitor</span>
+    </div>
+    <div class="controls">
+      <select id="profileSelect" title="Remedy profile">
+        <option value="pulsatilla">Pulsatilla</option>
+        <option value="bryonia">Bryonia</option>
+        <option value="tarantula">Tarantula</option>
+        <option value="calcarea">Calcarea</option>
+      </select>
+      <input id="circadianInput" type="number" min="0" max="23.9" step="0.1" value="12" title="Circadian hour" style="width:70px;background:rgba(255,255,255,0.05);border:1px solid var(--panel-border);color:var(--text);padding:0.4rem;border-radius:0.35rem;">
+      <button id="eventBtn">Simulate event</button>
+      <button id="exportBtn">⬇ Export</button>
+      <button id="importBtn">⬆ Import</button>
+      <input id="importFile" type="file" accept="application/json" style="display:none">
+      <button id="resetBtn" class="danger">Reset</button>
+      <button id="refreshBtn">⟳ Refresh</button>
+    </div>
+  </header>
+
+  <main>
+    <section class="panel" style="grid-column: span 2;">
+      <h2>🎯 VAD Affective Vector <span class="badge" id="affectBadge">neutral</span></h2>
+      <div class="metric-grid" id="vadMetrics"></div>
+      <div class="vad-plot">
+        <div class="axis-label">arousal ↑</div>
+        <div>
+          <div class="axis-name" style="text-align:center;margin-bottom:0.3rem;">Valence →</div>
+          <div class="vad-cross" id="vadCross">
+            <div class="crosshair-x"></div>
+            <div class="crosshair-y"></div>
+            <div class="dot" id="vadDot"></div>
+          </div>
+          <div class="axis-name" style="text-align:center;margin-top:0.3rem;">Dominance ↑</div>
+        </div>
+        <div class="axis-label">arousal ↓</div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <h2>🏠 Hypothalamus / Drives</h2>
+      <div class="metric-grid" id="driveMetrics"></div>
+    </section>
+
+    <section class="panel">
+      <h2>🎭 Expression Vector</h2>
+      <div class="metric-grid" id="expressionMetrics"></div>
+      <div class="expression-chips" id="expressionChips"></div>
+    </section>
+
+    <section class="panel">
+      <h2>⚡ Reward Prediction Error</h2>
+      <div class="metric-grid" id="rpeMetrics"></div>
+    </section>
+
+    <section class="panel" style="grid-column: span 2;">
+      <h2>🧪 Neurochemistry</h2>
+      <div class="metric-grid" id="neuroMetrics"></div>
+    </section>
+
+    <section class="panel">
+      <h2>🔒 Receptor Sensitivities &amp; Pools</h2>
+      <div class="metric-grid" id="receptorMetrics"></div>
+    </section>
+
+    <section class="panel">
+      <h2>🌙 Circadian &amp; Allostatic Load</h2>
+      <div class="metric-grid" id="allostaticMetrics"></div>
+    </section>
+
+    <section class="panel" style="grid-column: span 2;">
+      <h2>💊 Metabolic Cofactor Controls</h2>
+      <p style="color:var(--muted);font-size:0.75rem;margin-top:-0.4rem;">
+        Adjust vitamins, minerals, and amino-acid precursors. 0.5 = baseline. These are educational simulations, not clinical recommendations.
+      </p>
+      <div id="cofactorControls"></div>
+    </section>
+
+    <section class="panel" style="grid-column: span 2;">
+      <h2>📝 Episodic Buffer</h2>
+      <div class="event-list" id="eventList"></div>
+    </section>
+
+    <section class="panel" style="grid-column: span 2;">
+      <h2>📄 Raw State JSON</h2>
+      <div class="state-json" id="rawJson">Loading…</div>
+    </section>
+  </main>
+
+  <script>
+    const API = location.origin + '/api';
+    let currentState = null;
+
+    const fmt = (n) => (n == null ? '-' : Number(n).toFixed(2));
+    const clamp = (n, lo, hi) => Math.max(lo, Math.min(hi, n));
+
+    function metric(label, value, max = 1, negative = false) {
+      const pct = clamp((value / max) * 100, 0, 100);
+      return `
+        <div class="metric">
+          <div class="label">${label}</div>
+          <div class="value" style="color:${value > 0.7 ? 'var(--warn)' : 'inherit'}">${fmt(value)}</div>
+          <div class="bar"><div class="fill ${negative && value < 0 ? 'negative' : ''}" style="width:${pct}%"></div></div>
+        </div>`;
+    }
+
+    async function fetchState() {
+      try {
+        const res = await fetch(`${API}/state`, { cache: 'no-store' });
+        currentState = await res.json();
+        render(currentState);
+      } catch (e) {
+        console.error('Failed to load state', e);
+      }
+    }
+
+    function render(state) {
+      const v = state.vad || {};
+      const d = state.drive || {};
+      const n = state.neurochemistry || {};
+      const ev = state.expression_vector || {};
+      const cofactors = state.cofactors || { levels: {} };
+
+      document.getElementById('affectBadge').textContent = state.dominant_affect || 'neutral';
+
+      document.getElementById('vadMetrics').innerHTML = [
+        metric('Valence', v.valence, 1, true),
+        metric('Arousal', v.arousal),
+        metric('Dominance', v.dominance),
+      ].join('');
+
+      const dot = document.getElementById('vadDot');
+      dot.style.left = `${clamp((v.valence + 1) / 2 * 100, 0, 100)}%`;
+      dot.style.bottom = `${clamp(v.arousal * 100, 0, 100)}%`;
+      dot.style.opacity = 0.4 + v.dominance * 0.6;
+
+      document.getElementById('driveMetrics').innerHTML = [
+        metric('Rest Need', d.rest_need),
+        metric('Task Load', d.task_load),
+        metric('Error Temp', d.error_temperature),
+        metric('Safety', d.safety),
+      ].join('');
+
+      document.getElementById('expressionMetrics').innerHTML = [
+        metric('Warmth', ev.warmth),
+        metric('Speed', ev.speed),
+        metric('Cling', ev.cling),
+        metric('Caution', ev.caution),
+        metric('Verbosity', ev.verbosity),
+      ].join('');
+      document.getElementById('expressionChips').innerHTML =
+        `<span class="chip">hue ${ev.hue_hint || 0}</span>`;
+
+      document.getElementById('rpeMetrics').innerHTML = [
+        metric('RPE', state.reward_prediction_error, 1, true),
+        metric('Expected Reward', state.expected_reward, 1, true),
+      ].join('');
+
+      const ntOrder = [
+        ['serotonin','Serotonin'],['dopamine','Dopamine'],['norepinephrine','Norepinephrine'],
+        ['gaba','GABA'],['glutamate','Glutamate'],['glycine','Glycine'],
+        ['acetylcholine','Acetylcholine'],['endocannabinoid','Endocannabinoid'],
+        ['oxytocin','Oxytocin'],['vasopressin','Vasopressin'],['cortisol','Cortisol'],
+        ['adrenaline','Adrenaline'],['opioid','Opioid'],['histamine','Histamine'],
+        ['melatonin','Melatonin'],['bdnf','BDNF'],['nitric_oxide','Nitric Oxide'],
+        ['phenylethylamine','PEA'],['tyramine','Tyramine'],['neuropeptide_s','Neuropeptide S'],
+        ['orexin','Orexin'],['substance_p','Substance P'],['cytokine_load','Cytokine Load'],
+        ['hrv','HRV'],['respiration_rate','Respiration'],['dmn_activity','DMN'],
+      ];
+      document.getElementById('neuroMetrics').innerHTML = ntOrder
+        .map(([k, label]) => metric(label, n[k]))
+        .join('');
+
+      document.getElementById('receptorMetrics').innerHTML = [
+        metric('D1 Sensitivity', n.d1_sensitivity),
+        metric('Alpha1 Sensitivity', n.alpha1_sensitivity),
+        metric('GABA-A Sensitivity', n.gaba_a_sensitivity),
+        metric('GluN2B Sensitivity', n.glun2b_sensitivity),
+        metric('DA Pool', n.dopamine_pool),
+        metric('NE Pool', n.norepinephrine_pool),
+        metric('5HT Pool', n.serotonin_pool),
+        metric('ACh Pool', n.acetylcholine_pool),
+        metric('GABA Pool', n.gaba_pool),
+        metric('Glu Pool', n.glutamate_pool),
+      ].join('');
+
+      document.getElementById('allostaticMetrics').innerHTML = [
+        metric('Allostatic Load', state.allostatic_load),
+        metric('Circadian Hour', state.circadian_hour, 24),
+        metric('DA/5HT Ratio', (state.neurotransmitter_ratios || {}).dopamine_serotonin_ratio, 3),
+        metric('GABA/Glu Ratio', (state.neurotransmitter_ratios || {}).gaba_glutamate_ratio, 3),
+      ].join('');
+
+      renderCofactorControls(cofactors.levels);
+
+      const events = state.episodic_summary || [];
+      document.getElementById('eventList').innerHTML = events.length
+        ? events.map(e => {
+            const div = document.createElement('div');
+            div.className = 'event-item';
+            const safeKind = String(e.kind || '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+            const safeDesc = String(e.description || '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+            const safeTs = new Date((Number(e.timestamp) || 0) * 1000).toLocaleTimeString();
+            div.innerHTML = `<span class="kind">${safeKind}</span>
+              <span class="desc">${safeDesc}</span>
+              <span class="ts">${safeTs}</span>`;
+            return div.outerHTML;
+          }).join('')
+        : '<div style="color:var(--muted)">No events yet.</div>';
+
+      document.getElementById('rawJson').textContent = JSON.stringify(state, null, 2);
+    }
+
+    const cofactorLibrary = {};
+    async function loadCofactorLibrary() {
+      const res = await fetch(`${API}/cofactors`, { cache: 'no-store' });
+      const data = await res.json();
+      (data.cofactors || []).forEach(c => cofactorLibrary[c.id] = c);
+      renderCofactorControls((currentState && currentState.cofactors && currentState.cofactors.levels) || {});
+    }
+
+    function renderCofactorControls(levels) {
+      const container = document.getElementById('cofactorControls');
+      const ids = Object.keys(cofactorLibrary).sort();
+      if (!ids.length) {
+        container.innerHTML = '<div style="color:var(--muted)">Loading cofactor definitions…</div>';
+        return;
+      }
+      container.innerHTML = ids.map(id => {
+        const c = cofactorLibrary[id];
+        const val = (levels[id] != null) ? levels[id] : c.default_level;
+        return `
+          <div class="slider-row">
+            <label title="${c.description}">${c.name}</label>
+            <input type="range" min="0" max="1" step="0.01" value="${fmt(val)}" data-id="${id}">
+            <span class="value">${fmt(val)}</span>
+          </div>`;
+      }).join('');
+
+      container.querySelectorAll('input[type=range]').forEach(input => {
+        input.addEventListener('input', async () => {
+          input.nextElementSibling.textContent = Number(input.value).toFixed(2);
+          const updates = {};
+          container.querySelectorAll('input[type=range]').forEach(i => updates[i.dataset.id] = parseFloat(i.value));
+          await fetch(`${API}/cofactors`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ cofactors: updates })
+          });
+          await fetchState();
+        });
+      });
+    }
+
+    document.getElementById('refreshBtn').addEventListener('click', fetchState);
+    document.getElementById('resetBtn').addEventListener('click', async () => {
+      if (!confirm('Reset Limbic state?')) return;
+      await fetch(`${API}/state`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ kind: 'reset', description: 'Dashboard reset' }) });
+      await fetchState();
+    });
+    document.getElementById('eventBtn').addEventListener('click', async () => {
+      const kinds = ['user_message','success','error','task_complete','praise','conflict'];
+      const kind = kinds[Math.floor(Math.random() * kinds.length)];
+      const raw = (Math.random() - 0.5) * 1.2;
+      await fetch(`${API}/state`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ kind, description: `Simulated ${kind}`, raw_valence: raw, raw_arousal: Math.abs(raw)*0.6, importance: 0.5 + Math.random()*0.4 })
+      });
+      await fetchState();
+    });
+    document.getElementById('circadianInput').addEventListener('change', async (e) => {
+      await fetch(`${API}/state`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ kind: 'circadian_set', description: 'Set circadian hour', circadian_hour: parseFloat(e.target.value) })
+      });
+      await fetchState();
+    });
+    document.getElementById('profileSelect').addEventListener('change', async (e) => {
+      await fetch(`${API}/state`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ kind: 'profile_set', description: 'Set profile', profile: e.target.value })
+      });
+      await fetchState();
+    });
+
+    // Export / Import state
+    document.getElementById('exportBtn').addEventListener('click', async () => {
+      const res = await fetch(`${API}/state`);
+      const data = await res.json();
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `limbic-state-${Date.now()}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+    });
+    document.getElementById('importBtn').addEventListener('click', () => {
+      document.getElementById('importFile').click();
+    });
+    document.getElementById('importFile').addEventListener('change', async (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      const text = await file.text();
+      await fetch(`${API}/state`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: text,
+      });
+      await fetchState();
+    });
+
+    // Initial load
+    loadCofactorLibrary();
+    fetchState();
+    setInterval(fetchState, 2000);
+  </script>
+</body>
+</html>

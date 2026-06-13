@@ -10,6 +10,7 @@ and updated in small, physiologically-plausible steps.
 """
 from __future__ import annotations
 
+import math
 from dataclasses import asdict, dataclass, field
 from typing import Dict, Tuple
 
@@ -58,6 +59,31 @@ class NeurochemicalState:
     orexin: float = 0.5
     substance_p: float = 0.1
     cytokine_load: float = 0.0
+    d2_autoreceptor_inhibition: float = 0.0
+
+    # Kynurenine / neuroinflammation metabolites
+    kynurenine: float = 0.1
+    quinolinic_acid: float = 0.0
+    picolinic_acid: float = 0.1
+
+    # Enzyme / transporter phenotypes
+    mao_activity: float = 1.0
+    dopamine_clearance_rate: float = 0.2
+    serotonin_reuptake: float = 0.2
+
+    # Additional receptor sensitivities
+    gaba_a_sensitivity: float = 1.0
+    glun2b_sensitivity: float = 1.0
+
+    # Respiration / interoception
+    respiration_phase: float = 0.0
+
+    # Dopamine pathway divergence
+    dopamine_mesolimbic: float = 0.27
+    dopamine_mesocortical: float = 0.21
+
+    # Prolactin / care
+    prolactin: float = 0.3
 
     # Composite / derived
     heart_rate_variability: float = 0.5
@@ -102,8 +128,21 @@ class NeurochemicalState:
             orexin=clamp01(self.orexin),
             substance_p=clamp01(self.substance_p),
             cytokine_load=clamp01(self.cytokine_load),
+            d2_autoreceptor_inhibition=clamp01(self.d2_autoreceptor_inhibition),
             heart_rate_variability=clamp01(self.heart_rate_variability),
             respiration_rate=clamp01(self.respiration_rate),
+            kynurenine=clamp01(self.kynurenine),
+            quinolinic_acid=clamp01(self.quinolinic_acid),
+            picolinic_acid=clamp01(self.picolinic_acid),
+            mao_activity=clamp01(self.mao_activity),
+            dopamine_clearance_rate=clamp01(self.dopamine_clearance_rate),
+            serotonin_reuptake=clamp01(self.serotonin_reuptake),
+            gaba_a_sensitivity=clamp01(self.gaba_a_sensitivity),
+            glun2b_sensitivity=clamp01(self.glun2b_sensitivity),
+            respiration_phase=clamp01(self.respiration_phase),
+            dopamine_mesolimbic=clamp01(self.dopamine_mesolimbic),
+            dopamine_mesocortical=clamp01(self.dopamine_mesocortical),
+            prolactin=clamp01(self.prolactin),
             dmn_activity=clamp01(self.dmn_activity),
             d1_sensitivity=clamp01(self.d1_sensitivity),
             alpha1_sensitivity=clamp01(self.alpha1_sensitivity),
@@ -142,6 +181,7 @@ class NeurochemistryEngine:
         drive_safety: float,
         surprise: float,
         circadian_hour: float = 12.0,
+        metabolic_energy: float = 0.5,
     ) -> None:
         """Advance neurochemical state by one time step."""
         s = self.state
@@ -169,6 +209,16 @@ class NeurochemistryEngine:
             s.dopamine_pool = max(0.2, s.dopamine_pool - 0.08 * dt)
         else:
             s.dopamine_pool = min(1.0, s.dopamine_pool + 0.03 * dt)
+
+        # --- D2 autoreceptor short-loop feedback ---
+        # D2 autoreceptors are slow sensors: they ramp up when dopamine is high
+        # and decay when it falls, creating a persistent brake on further release.
+        d2_target = clamp01((s.dopamine - 0.6) * 1.5)
+        s.d2_autoreceptor_inhibition = self._toward(
+            s.d2_autoreceptor_inhibition, d2_target, 0.12 * dt
+        )
+        s.dopamine = max(0.0, s.dopamine - s.d2_autoreceptor_inhibition * 0.15 * dt)
+        s.dopamine_pool = min(1.0, s.dopamine_pool - s.d2_autoreceptor_inhibition * 0.05 * dt)
 
         # --- Norepinephrine: tonic + phasic ---
         ne_target = 0.2 + 0.3 * drive_task_load + 0.5 * clamp01(surprise)
@@ -203,11 +253,6 @@ class NeurochemistryEngine:
         s.glutamate = min(s.glutamate, s.glutamate_pool)
         s.gaba = min(s.gaba, s.gaba_pool)
 
-        # Effective levels respect pool ceilings
-        s.dopamine = min(s.dopamine, s.dopamine_pool)
-        s.norepinephrine = min(s.norepinephrine, s.norepinephrine_pool)
-        s.acetylcholine = min(s.acetylcholine, s.acetylcholine_pool)
-
         glu_target = 0.4 + 0.3 * appraisal_arousal + 0.2 * drive_task_load
         s.glutamate = self._toward(s.glutamate, glu_target, 0.05 * dt)
 
@@ -232,12 +277,17 @@ class NeurochemistryEngine:
         s.vasopressin = self._toward(s.vasopressin, vaso_target, 0.04 * dt)
 
         # --- Cortisol: HPA-axis stress with slow decay ---
-        cortisol_input = 0.1 + 0.4 * drive_error_temperature + 0.2 * (1 - drive_safety)
+        # Add a circadian peak around 8 AM (phase 0.333)
+        circadian_phase = (circadian_hour % 24.0) / 24.0
+        car_peak = max(0.0, 1.0 - min(abs(circadian_phase - 0.333), 1.0 - abs(circadian_phase - 0.333)) * 6)
+        cortisol_input = 0.1 + 0.15 * car_peak + 0.4 * drive_error_temperature + 0.2 * (1 - drive_safety)
         s.cortisol = self._toward(s.cortisol, cortisol_input, 0.015 * dt)
 
         # --- Adrenaline: acute fight-or-flight, fast decay ---
-        adr_target = 0.0 + 0.8 * clamp01(surprise) * (1 if appraisal_valence < -0.2 else 0.3)
-        s.adrenaline = self._toward(s.adrenaline, adr_target, 0.12 * dt)
+        # Strong valence-negative surprises produce a rapid, large adrenaline surge.
+        valence_multiplier = 1.0 if appraisal_valence < -0.2 else 0.4
+        adr_target = 0.0 + 1.2 * clamp01(surprise) * valence_multiplier
+        s.adrenaline = self._toward(s.adrenaline, adr_target, 0.25 * dt)
 
         # --- Opioid: buffers pain, rises with comfort/safety ---
         op_target = 0.3 + 0.3 * clamp01(appraisal_valence) + 0.2 * drive_safety
@@ -248,6 +298,8 @@ class NeurochemistryEngine:
         # Lower histamine at night, higher during day
         circadian_wake = 1.0 - melatonin_phase
         his_target = 0.5 * circadian_wake + 0.5 * his_target
+        # Metabolic energy raises histamine / orexin directly
+        his_target += 0.15 * metabolic_energy
         s.histamine = self._toward(s.histamine, his_target, 0.04 * dt)
 
         # --- Melatonin: circadian ---
@@ -273,8 +325,10 @@ class NeurochemistryEngine:
         s.neuropeptide_s = self._toward(s.neuropeptide_s, nps_target, 0.08 * dt)
 
         # --- Orexin: wakefulness/motivation ---
-        ox_target = 0.5 + 0.2 * s.histamine - 0.3 * drive_rest_need
-        s.orexin = self._toward(s.orexin, ox_target, 0.04 * dt)
+        ox_target = 0.4 + 0.35 * s.histamine - 0.3 * drive_rest_need
+        # Metabolic energy strongly raises orexin
+        ox_target += 0.35 * metabolic_energy
+        s.orexin = self._toward(s.orexin, ox_target, 0.15 * dt)
 
         # --- Substance P: pain salience under stress ---
         sp_target = 0.1 + 0.5 * s.cortisol + 0.2 * (1 - drive_safety)
@@ -284,15 +338,44 @@ class NeurochemistryEngine:
         cyto_target = 0.0 + 0.5 * s.cortisol + 0.2 * drive_error_temperature
         s.cytokine_load = self._toward(s.cytokine_load, cyto_target, 0.01 * dt)
 
+        # --- Kynurenine pathway: inflammation shunts tryptophan away from serotonin ---
+        s.kynurenine = self._toward(s.kynurenine, 0.1 + 0.7 * s.cytokine_load, 0.2 * dt)
+        s.quinolinic_acid = self._toward(s.quinolinic_acid, 0.0 + 0.6 * s.kynurenine, 0.2 * dt)
+        s.picolinic_acid = self._toward(s.picolinic_acid, 0.1 + 0.3 * s.kynurenine, 0.2 * dt)
+        glu_kyn = glu_target + 0.25 * s.quinolinic_acid
+        s.glutamate = self._toward(s.glutamate, glu_kyn, 0.05 * dt)
+        # Serotonin synthesis target is suppressed by high cytokine load
+        serotonin_target = serotonin_target * (1 - 0.35 * s.cytokine_load)
+        s.serotonin = self._toward(s.serotonin, clamp01(serotonin_target), 0.05 * dt)
+
         # --- Interoception ---
-        hrv_target = 0.5 - 0.3 * s.adrenaline + 0.2 * s.oxytocin
-        s.heart_rate_variability = self._toward(s.heart_rate_variability, hrv_target, 0.05 * dt)
+        hrv_target = 0.5 - 0.4 * s.adrenaline + 0.2 * s.oxytocin
+        s.heart_rate_variability = self._toward(s.heart_rate_variability, hrv_target, 0.15 * dt)
         rr_target = 0.3 + 0.4 * s.norepinephrine
+        # Respiration phase entrainment
+        rr_target += 0.15 * math.sin(2 * math.pi * (s.respiration_phase + 0.25))
         s.respiration_rate = self._toward(s.respiration_rate, rr_target, 0.05 * dt)
 
         # --- Default mode network ---
         dmn_target = 0.6 * (1 - drive_task_load) + 0.2 * drive_rest_need
         s.dmn_activity = self._toward(s.dmn_activity, dmn_target, 0.03 * dt)
+
+
+        # --- Enzymatic degradation (MAO + COMT + SERT) ---
+        s.serotonin = max(0.0, s.serotonin - s.mao_activity * 0.05 * dt * s.serotonin)
+        s.dopamine = max(0.0, s.dopamine - (s.mao_activity * 0.04 + s.dopamine_clearance_rate * 0.1) * dt * s.dopamine)
+        s.norepinephrine = max(0.0, s.norepinephrine - s.mao_activity * 0.05 * dt * s.norepinephrine)
+        s.serotonin = max(0.0, s.serotonin - s.serotonin_reuptake * 0.1 * dt * s.serotonin)
+
+        # --- Dopamine pathway divergence ---
+        s.dopamine_mesolimbic = self._toward(s.dopamine_mesolimbic, s.dopamine * 0.9, 0.05 * dt)
+        s.dopamine_mesocortical = self._toward(
+            s.dopamine_mesocortical, s.dopamine * 0.7 * s.dopamine_pool, 0.04 * dt
+        )
+
+        # --- Prolactin: rises with comfort/care, drops with dopamine ---
+        prolactin_target = 0.3 + 0.3 * s.opioid - 0.2 * s.dopamine
+        s.prolactin = self._toward(s.prolactin, clamp01(prolactin_target), 0.02 * dt)
 
         # Receptor desensitization: sustained high DA or NE, or chronically low pool
         if s.dopamine > 0.7 or s.dopamine_pool < 0.5:
@@ -305,6 +388,17 @@ class NeurochemistryEngine:
         else:
             s.alpha1_sensitivity = min(1.0, s.alpha1_sensitivity + 0.01 * dt)
 
+        # GABA-A and GluN2B desensitization
+        if s.gaba > 0.7:
+            s.gaba_a_sensitivity = max(s._sensitivity_floor, s.gaba_a_sensitivity - 0.02 * dt)
+        else:
+            s.gaba_a_sensitivity = min(1.0, s.gaba_a_sensitivity + 0.01 * dt)
+
+        if s.glutamate > 0.7 or s.glun2b_sensitivity < 0.5:
+            s.glun2b_sensitivity = max(s._sensitivity_floor, s.glun2b_sensitivity - 0.02 * dt)
+        else:
+            s.glun2b_sensitivity = min(1.0, s.glun2b_sensitivity + 0.01 * dt)
+
         self.state = s.clamp()
 
     def modulate_appraisal(
@@ -316,10 +410,10 @@ class NeurochemistryEngine:
         """Apply neurochemical modulation to an appraisal delta."""
         s = self.state
 
-        # GABA inhibition
-        inhibition = 1.0 - s.gaba * 0.5
-        # Glutamate excitation
-        excitation = 1.0 + s.glutamate * 0.5
+        # GABA inhibition (scaled by GABA-A receptor sensitivity)
+        inhibition = 1.0 - s.gaba * 0.5 * s.gaba_a_sensitivity
+        # Glutamate excitation (scaled by GluN2B receptor sensitivity)
+        excitation = 1.0 + s.glutamate * 0.5 * s.glun2b_sensitivity
         # Combined net gain
         net_gain = excitation * inhibition
 
@@ -357,6 +451,27 @@ class NeurochemistryEngine:
             + (1 - s.serotonin) * 0.15
             + (1 - s.heart_rate_variability) * 0.1
         )
+
+
+    def compute_polyvagal_state(self, drive_safety: float) -> str:
+        s = self.state
+        if s.heart_rate_variability > 0.6 and s.oxytocin > 0.4 and drive_safety > 0.5:
+            return "ventral_vagal"
+        if s.adrenaline > 0.5 or s.norepinephrine > 0.7 or s.cortisol > 0.6:
+            return "sympathetic"
+        if s.heart_rate_variability < 0.25 and s.cortisol > 0.5:
+            return "dorsal_vagal"
+        return "mixed"
+
+    def compute_lc_mode(self, task_load: float, surprise: float) -> str:
+        s = self.state
+        if s.norepinephrine > 0.7 and surprise > 0.3:
+            return "phasic"
+        if s.norepinephrine < 0.3 and task_load < 0.3:
+            return "tonic"
+        if task_load > 0.6:
+            return "tonic"
+        return "tonic"
 
     @staticmethod
     def _toward(current: float, target: float, amount: float) -> float:
