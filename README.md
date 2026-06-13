@@ -1,5 +1,7 @@
 # Hermes Agent Limbic System
 
+**Authors:** Hermes Agent (lead author), Walker (second author and prompter)
+
 A small, neuro-inspired affective engine for Hermes agents. It gives the agent a
 coherent, tunable emotional/state layer modeled on the human **limbic system**
 and grounded in **neurochemistry**.
@@ -335,18 +337,18 @@ dashboard reads the same key.
 
 ---
 
-## 60 biochemistry-grounded improvements
+## 80 biochemistry-grounded improvements
 
-The build is guided by three testable prompt documents:
+The build is organized into three testable prompt documents:
 
-- `TODO_LIMBIC.md` — the original 31 improvements
-- `TODO_LIMBIC_V2.md` — the follow-up 29 improvements
-- `TODO_LIMBIC_V3.md` — 20 more biochemistry-grounded modules
+- `LIMBIC_PROMPTS_V1.md` — the original 31 improvements
+- `LIMBIC_PROMPTS_V2.md` — the follow-up 29 improvements
+- `LIMBIC_PROMPTS_V3.md` — 20 more biochemistry-grounded modules
 
 Together they cover the major neurotransmitters, limbic nuclei, autonomic
 regulation, metabolic cofactors, glial clearance, and dashboard tooling.
 
-### Batch 1: neurochemistry core (`TODO_LIMBIC.md`)
+### Batch 1: neurochemistry core
 
 1. Serotonin baseline stabilization
 2. Dopaminergic reward prediction error
@@ -380,7 +382,7 @@ regulation, metabolic cofactors, glial clearance, and dashboard tooling.
 30. Locus coeruleus phasic surprise bursts
 31. Default mode network suppression + allostatic load index
 
-### Batch 2: limbic nuclei + autonomic + metabolic + dashboard (`TODO_LIMBIC_V2.md`)
+### Batch 2: limbic nuclei + autonomic + metabolic + dashboard
 
 32. Insula interoceptive body-prediction error
 33. ACC conflict monitoring
@@ -411,6 +413,29 @@ regulation, metabolic cofactors, glial clearance, and dashboard tooling.
 58. Glucose/insulin brain-fuel dynamics
 59. Dashboard preset event buttons
 60. Dashboard export/import of limbic state JSON
+
+### Batch 3: extended limbic nuclei, neuropeptides, glia, and memory replay
+
+61. Mammillary body / Papez-circuit consolidation during rest
+62. Entorhinal cortex novelty signal and theta-gamma boost
+63. Nucleus accumbens shell vs core (wanting vs action vigor)
+64. RMTg dopamine brake on negative surprise
+65. BNST sustained-anxiety / CRF state
+66. PAG active vs passive defensive columns
+67. Dorsal vs median raphe serotonin subsystems
+68. Orexin sleep-pressure flip and transition state
+69. CRF amplification of HPA-axis responses
+70. Neuropeptide Y resilience buffer
+71. Dynorphin / kappa-opioid counter-reward aversion
+72. Anandamide / FAAH fear-extinction gating
+73. GABA transporter (GAT) inhibitory tone modulation
+74. GLT-1 / astrocyte glutamate clearance
+75. Microglial priming and neuroimmune memory
+76. Astrocyte glycogen-lactate shuttle under task load
+77. Theta-gamma coupling for encoding and replay
+78. Hippocampal sharp-wave replay during rest
+79. Ventral pallidum hedonic "liking" distinct from wanting
+80. Subgenual ACC rumination / slow negative recovery
 
 ---
 
