@@ -41,6 +41,7 @@ from limbic_hermes.cofactors import (
     apply_cofactors_to_neurochemistry,
     compute_cofactor_targets,
 )
+from limbic_hermes import integration_modules as im
 
 
 def clamp11(x: float) -> float:
@@ -669,6 +670,29 @@ class LimbicSystem:
                 {"name": self.snp_profile.name, "effects": self.snp_profile.get_variant_effects()}
                 if self.snp_profile else None
             ),
+            # Integration modules (circuit-level composites)
+            "integration": {
+                "stress_immune_fatigue": im.compute_stress_immune_fatigue(n),
+                "reward_extinction": im.compute_reward_extinction_state(n),
+                "sleep_homeostasis": im.compute_sleep_homeostasis(n, self.circadian_hour),
+                "social_affiliation": im.compute_social_affiliation(n),
+                "fear_memory": im.compute_fear_memory_state(n),
+                "attention_salience": im.compute_attention_salience(n),
+                "metabolic_allocation": im.compute_metabolic_allocation(n, self.drive.task_load, self.drive.rest_need),
+                "pain_modulation": im.compute_pain_modulation(n),
+                "hpa_feedback": im.compute_hpa_feedback(n),
+                "circadian_metabolic": im.compute_circadian_metabolic(n, self.circadian_hour),
+                "dmn_salience": im.compute_dmn_salience_switch(n),
+                "resilience": im.compute_resilience_state(n),
+                "gut_brain_stress": im.compute_gut_brain_stress(n),
+                "hormonal_mood": im.compute_hormonal_mood(n),
+                "excitotoxicity_protection": im.compute_excitotoxicity_protection(n),
+                "prepulse_gating": im.compute_prepulse_gating(n),
+                "thermogenesis_arousal": im.compute_thermogenesis_arousal(n),
+                "dopamine_balance": im.compute_dopamine_balance(n),
+                "theta_memory": im.compute_theta_memory_state(n),
+                "allostatic_recovery": im.compute_allostatic_recovery(n),
+            },
         }
 
     def dominant_affect(self) -> str:

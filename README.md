@@ -11,12 +11,18 @@ give it a **persistent, explainable internal state** that influences tone,
 pacing, risk tolerance, and expression — and that can be tuned by a remedy
 personality module.
 
-> **Latest:** V5 adds 20 new testable neurochemical/structural modules
-> (cerebellar motor error, PAG columnar organization, prefrontal gating,
-> thermoregulation, thalamic attention, sleep architecture, glymphatic clearance,
-> gut–brain axis, hypoxic adaptation, pain gating, hedonic liking/wanting,
-> mast cell degranulation, mitochondrial bioenergetics, and more).
-> Total: **152 tests**, **60+ neurochemical variables**.
+> **Latest:** V6 adds 20 integration circuit modules tying together neurochemical
+> components into functional systems (stress-immune, reward-extinction, sleep-homeostasis,
+> social-affiliation, fear-memory, attention-salience, metabolic-allocation, pain-modulation,
+> HPA-feedback, circadian-metabolic, DMN-salience, neuroplasticity-resilience, gut-brain-stress,
+> hormonal-mood, excitotoxicity-protection, prepulse-gating, thermogenesis-arousal,
+> dopamine-balancing, theta-memory-encoding, allostatic-recovery).
+> Total: **193 tests**, **100+ neurochemical variables**.
+>
+> Previous: V5 added 20 neurochemical/structural modules (cerebellar motor error,
+> PAG columns, prefrontal gating, thermoregulation, thalamic attention, sleep architecture,
+> glymphatic clearance, gut–brain axis, hypoxic adaptation, pain gating, hedonic
+> liking/wanting, mast cell degranulation, mitochondrial bioenergetics, and more).
 
 ---
 
@@ -97,8 +103,9 @@ adds:
 
 | File | What it does |
 |------|--------------|
-| `limbic_hermes/core.py` | `LimbicSystem`, `LimbicSkillBridge`, VAD/drive/episodic logic, nucleus modules |
-| `limbic_hermes/neurochemistry.py` | `NeurochemicalState`, `NeurochemistryEngine` — transmitter dynamics |
+| `limbic_hermes/integration_modules/` | 20 circuit-level integration modules tying neurochemistry into functional systems |
+| `limbic_hermes/core.py` | `LimbicSystem`, `LimbicSkillBridge`, VAD/drive/episodic logic, nucleus modules, integration wiring |
+| `limbic_hermes/neurochemistry.py` | `NeurochemicalState`, `NeurochemistryEngine` — 100+ transmitter dynamics |
 | `limbic_hermes/profiles.py` | Remedy temperament library (Pulsatilla, Bryonia, Tarantula, Calcarea, …) |
 | `limbic_hermes/cofactors.py` | Metabolic cofactor-to-neurochemistry mapping and virtual controls |
 | `limbic_hermes/metabolic_snp.py` | Pharmacogenomic SNP-to-neurochemistry modifier mapping |
@@ -159,23 +166,8 @@ This is the same representation used in recent LLM emotion-steering work
 | `Fastigial` | cerebellar timing | Predictable inter-event interval boost |
 | `PVN` | stress integration | CRF output gated by amygdala, BNST, NTS |
 | `Medial Habenula` | value comparison | Suppresses dopamine when expected > actual |
-| **V5 additions** | | |
-| `Cerebellum` | motor error | Purkinje inhibition, climbing-fiber teaching signal |
-| `PAG columns` | defensive columns | Dorsolateral (fight), ventrolateral (freeze), lateral (threat) |
-| `dlPFC / OFC` | prefrontal gating | Working-memory maintenance vs reward valuation updating |
-| `Thermoregulation` | body temperature | Preoptic warmth sensing, brown adipose, heat suppression of histamine |
-| `Thalamic gating` | attention | MD thalamus gates working memory; pulvinar gates salience |
-| `Sleep architecture` | NREM/REM | NREM slow-wave boosts glymphatic clearance; REM theta boosts dopamine |
-| `Glymphatics` | waste clearance | Astrocyte aquaporin-4, amyloid-beta clearance, flow correlates with sleep |
-| `Gut–brain axis` | microbiome | Vagal afferent, SCFA/butyrate, GABA modulation |
-| `Hypoxic adaptation` | HIF-1α | Adenosine rise, glutamate suppression, hypoxia-inducible factor |
-| `Pain gating` | RVMM / gate control | Spinal opioid, Aβ-fiber inhibition of C-fiber pain |
-| `Hedonic` | NAcc shell | Mu-opioid "liking" vs dopaminergic "wanting" |
-| `Mast cells` | neuroimmune | Histamine + cytokine release on degranulation |
-| `Precursor competition` | BBB transport | Tryptophan depletion lowers serotonin; tyrosine competition |
-| `Prepulse inhibition` | PPI gating | Weak prestimulus reduces startle response |
-| `BCM theory` | synaptic plasticity | LTP threshold slides with postsynaptic activity |
-| `Mitochondria` | bioenergetics | ATP depletion under task load, ROS, excitotoxicity risk |
+| **V5** | Cerebellum, PAG, thermoregulation, thalamus, sleep, glymphatics, gut–brain, hypoxia, pain, hedonic, mast cells, precursors, PPI, BCM, mitochondria | Advanced neurochemical/structural modules |
+| **V6** | Integration circuits | 20 circuit-level modules tying components into functional systems (stress-immune, reward-extinction, sleep-homeostasis, social-affiliation, fear-memory, attention-salience, metabolic-allocation, pain-modulation, HPA-feedback, circadian-metabolic, DMN-salience, neuroplasticity-resilience, gut-brain-stress, hormonal-mood, excitotoxicity-protection, prepulse-gating, thermogenesis-arousal, dopamine-balancing, theta-memory-encoding, allostatic-recovery) |
 
 ### Neurochemistry layer
 
@@ -196,6 +188,8 @@ neuromodulators that shape limbic computation:
 | Enzymatic / transport | MAO, COMT, SERT, FAAH, GAT, GLT-1 |
 | Sleep / arousal | sleep_pressure, orexin state, nrem_slow_wave, rem_theta |
 | **V5 additions** | allopregnanolone, estrogen, progesterone, testosterone, adenosine, hif1_alpha, tryptophan, tyrosine, butyrate, amyloid_beta, aquaporin_4, vagal_afferent, glymphatic_flow, preoptic_warmth, brown_adipose_activity, body_temperature, md_thalamus, pulvinar, medial_septum, hippocampal_theta, grid_cell_modulation, rvmm_activity, spinal_opioid, ab_fiber, nacc_shell_liking, startle_response, prepulse_inhibition, ltp_threshold, synaptic_change |
+
+**V6 integration modules** add circuit-level derived states from these 100+ variables, producing composite metrics like `chronic_stress_index`, `reward_learning`, `extinction_state`, `sleep_need`, `social_approach`, `fear_memory_strength`, `attention_focus`, `cognitive_reserve`, `pain_level`, `feedback_integrity`, `circadian_alignment`, `dmn_dominance`, `plasticity_index`, `gut_resilience`, `estrogenic_mood`, `excitotoxicity_risk`, `sensorimotor_gating`, `thermogenesis_level`, `mesolimbic_bias`, `encoding_strength`, `recovery_potential`, and `restoration_rate`.
 
 Each transmitter:
 
@@ -380,7 +374,7 @@ dashboard reads the same key.
 
 ---
 
-## 120 biochemistry-grounded improvements
+## 155 biochemistry-grounded improvements
 
 The build is organized into five testable prompt documents:
 
@@ -633,6 +627,31 @@ SNP effects are visible in the dashboard under the **🧬 Metabolic SNP Profile*
 - Use `set_user_affect()` for user-affect entrainment.
 - Hook the `expression_vector` and `neurochemistry` fields into the LLM prompt
   template or dashboard.
+
+---
+
+### Batch 6: integration circuit modules (V6)
+
+136. Stress-immune-fatigue: cortisol + CRF + microglia → fatigue; BDNF + NPY protect
+137. Reward-extinction: dopamine PE vs anandamide extinction vs dynorphin aversion
+138. Sleep-homeostasis: adenosine + melatonin → need; NREM/REM → recovery
+139. Social-affiliation: oxytocin approach vs vasopressin avoidance vs testosterone
+140. Fear-memory-consolidation: BLA + NE → encoding; IL + anandamide → extinction
+141. Attention-salience: ACh + phasic NE → focus; tonic NE → distractibility
+142. Metabolic-energy-allocation: ATP vs task load; glycogen depletion tracking
+143. Pain-modulation: substance P vs spinal opioid + Aβ gate control
+144. HPA-feedback: cortisol → CRF suppression integrity; sustained stress detection
+145. Circadian-metabolic-coupling: SCN alignment; orexin/histamine vs melatonin
+146. DMN-salience-switching: DMN dominance vs cortisol/cytokine salience
+147. Neuroplasticity-resilience: BDNF + neurogenesis vs cytokine vulnerability
+148. Gut-brain-stress: butyrate/vagal resilience vs cytokine gut stress
+149. Hormonal-mood: estrogen/serotonin; progesterone/GABA-A; testosterone/dopamine
+150. Excitotoxicity-protection: glutamate + low GLT-1 vs GABA/glycine/adenosine
+151. Prepulse-gating: PPI reduces startle; GABA improves sensorimotor gating
+152. Thermogenesis-arousal: BAT thermogenesis vs preoptic warmth suppression
+153. Dopamine-balancing: mesolimbic bias vs mesocortical stability
+154. Theta-memory-encoding: theta-gamma + ACh → encoding; NREM + BDNF → consolidation
+155. Allostatic-recovery: load vs capacity; restoration rate from sleep/vagal/BDNF
 
 ---
 
