@@ -11,6 +11,13 @@ give it a **persistent, explainable internal state** that influences tone,
 pacing, risk tolerance, and expression — and that can be tuned by a remedy
 personality module.
 
+> **Latest:** V5 adds 20 new testable neurochemical/structural modules
+> (cerebellar motor error, PAG columnar organization, prefrontal gating,
+> thermoregulation, thalamic attention, sleep architecture, glymphatic clearance,
+> gut–brain axis, hypoxic adaptation, pain gating, hedonic liking/wanting,
+> mast cell degranulation, mitochondrial bioenergetics, and more).
+> Total: **152 tests**, **60+ neurochemical variables**.
+
 ---
 
 ## Why a limbic layer?
@@ -70,14 +77,19 @@ adds:
         └───────────────┬───────────────┘
                         │
         ┌───────────────▼───────────────┐
-        │  NEUROCHEMISTRY + POOLS       │  30+ transmitters, receptors, pools
+        │  NEUROCHEMISTRY + POOLS       │  60+ transmitters, receptors, pools
         │  + metabolic cofactors        │  Mg, Zn, Fe, B6, B12, folate, D, omega-3
         └───────────────┬───────────────┘
                         │
         ┌───────────────▼───────────────┐
-        │  EXPRESSION VECTOR (output)   │
-        │  warmth, speed, cling,        │  <── remedy expression biases
-        │  caution, verbosity           │
+        │  CEREBELLUM / THALAMUS /      │  Purkinje error correction,
+        │  HIPPOCAMPUS / BRAINSTEM      │  PAG columns, theta-gamma,
+        │  + mitochondrial bioenergetics│  REM/NREM, glymphatic, mitochondrial ATP
+        └───────────────┬───────────────┘
+                        │
+        ┌───────────────▼───────────────┐
+        │  EXPRESSION VECTOR (output)   │  warmth, speed, cling,
+        │  + cofactor / SNP modulation  │  caution, verbosity
         └───────────────────────────────┘
 ```
 
@@ -89,6 +101,7 @@ adds:
 | `limbic_hermes/neurochemistry.py` | `NeurochemicalState`, `NeurochemistryEngine` — transmitter dynamics |
 | `limbic_hermes/profiles.py` | Remedy temperament library (Pulsatilla, Bryonia, Tarantula, Calcarea, …) |
 | `limbic_hermes/cofactors.py` | Metabolic cofactor-to-neurochemistry mapping and virtual controls |
+| `limbic_hermes/metabolic_snp.py` | Pharmacogenomic SNP-to-neurochemistry modifier mapping |
 | `limbic_hermes/dashboard_server.py` | Small HTTP backend that serves `/state`, `/adjust`, and preset events |
 | `limbic_hermes/dashboard.html` | Local-first single-file dashboard with panels for every module |
 | `limbic_hermes/storage.py` | JSON persistence helpers |
@@ -146,6 +159,23 @@ This is the same representation used in recent LLM emotion-steering work
 | `Fastigial` | cerebellar timing | Predictable inter-event interval boost |
 | `PVN` | stress integration | CRF output gated by amygdala, BNST, NTS |
 | `Medial Habenula` | value comparison | Suppresses dopamine when expected > actual |
+| **V5 additions** | | |
+| `Cerebellum` | motor error | Purkinje inhibition, climbing-fiber teaching signal |
+| `PAG columns` | defensive columns | Dorsolateral (fight), ventrolateral (freeze), lateral (threat) |
+| `dlPFC / OFC` | prefrontal gating | Working-memory maintenance vs reward valuation updating |
+| `Thermoregulation` | body temperature | Preoptic warmth sensing, brown adipose, heat suppression of histamine |
+| `Thalamic gating` | attention | MD thalamus gates working memory; pulvinar gates salience |
+| `Sleep architecture` | NREM/REM | NREM slow-wave boosts glymphatic clearance; REM theta boosts dopamine |
+| `Glymphatics` | waste clearance | Astrocyte aquaporin-4, amyloid-beta clearance, flow correlates with sleep |
+| `Gut–brain axis` | microbiome | Vagal afferent, SCFA/butyrate, GABA modulation |
+| `Hypoxic adaptation` | HIF-1α | Adenosine rise, glutamate suppression, hypoxia-inducible factor |
+| `Pain gating` | RVMM / gate control | Spinal opioid, Aβ-fiber inhibition of C-fiber pain |
+| `Hedonic` | NAcc shell | Mu-opioid "liking" vs dopaminergic "wanting" |
+| `Mast cells` | neuroimmune | Histamine + cytokine release on degranulation |
+| `Precursor competition` | BBB transport | Tryptophan depletion lowers serotonin; tyrosine competition |
+| `Prepulse inhibition` | PPI gating | Weak prestimulus reduces startle response |
+| `BCM theory` | synaptic plasticity | LTP threshold slides with postsynaptic activity |
+| `Mitochondria` | bioenergetics | ATP depletion under task load, ROS, excitotoxicity risk |
 
 ### Neurochemistry layer
 
@@ -158,13 +188,14 @@ neuromodulators that shape limbic computation:
 | Amino acids | GABA, glutamate, glycine |
 | Cholinergic | acetylcholine |
 | Endocannabinoid | eCB (retrograde calming) |
-| Neuropeptides / hormones | oxytocin, vasopressin, cortisol, adrenaline, opioid, histamine, melatonin, BDNF, neuropeptide S, orexin, substance P, prolactin |
+| Neuropeptides / hormones | oxytocin, vasopressin, cortisol, adrenaline, opioid, histamine, melatonin, BDNF, neuropeptide S, orexin, substance P, prolactin, CRF, NPY, dynorphin |
 | Gaseous / trace | nitric oxide, phenylethylamine, tyramine |
-| Immune / interoceptive | cytokine load, microglia_state, heart rate variability, respiration rate, respiration phase |
+| Immune / interoceptive | cytokine load, microglia_state, heart rate variability, respiration rate, respiration phase, mast_cell_activation |
 | Network | default mode network activity, theta-gamma coupling |
-| Metabolic | metabolic_energy, glucose, working_memory_load, glycogen, lactate |
+| Metabolic | metabolic_energy, glucose, working_memory_load, glycogen, lactate, mitochondrial_atp, reactive_oxygen_species |
 | Enzymatic / transport | MAO, COMT, SERT, FAAH, GAT, GLT-1 |
-| Sleep / arousal | sleep_pressure, orexin state |
+| Sleep / arousal | sleep_pressure, orexin state, nrem_slow_wave, rem_theta |
+| **V5 additions** | allopregnanolone, estrogen, progesterone, testosterone, adenosine, hif1_alpha, tryptophan, tyrosine, butyrate, amyloid_beta, aquaporin_4, vagal_afferent, glymphatic_flow, preoptic_warmth, brown_adipose_activity, body_temperature, md_thalamus, pulvinar, medial_septum, hippocampal_theta, grid_cell_modulation, rvmm_activity, spinal_opioid, ab_fiber, nacc_shell_liking, startle_response, prepulse_inhibition, ltp_threshold, synaptic_change |
 
 Each transmitter:
 
@@ -188,6 +219,8 @@ Each transmitter:
 - Has **microglial priming** so prior neuroimmune load sensitizes future cytokine spikes.
 - Has **theta-gamma coupling** that boosts hippocampal encoding and replay.
 - Has **sharp-wave replay / Papez consolidation** during rest.
+- Has **glymphatic clearance** that removes amyloid-beta during sleep.
+- Has **mitochondrial ATP** tracking that depletes under sustained task load and raises ROS.
 
 ### Metabolic cofactor virtual controls
 
@@ -347,18 +380,21 @@ dashboard reads the same key.
 
 ---
 
-## 100 biochemistry-grounded improvements
+## 120 biochemistry-grounded improvements
 
-The build is organized into four testable prompt documents:
+The build is organized into five testable prompt documents:
 
 - `LIMBIC_PROMPTS_V1.md` — the original 31 improvements
 - `LIMBIC_PROMPTS_V2.md` — the follow-up 29 improvements
 - `LIMBIC_PROMPTS_V3.md` — 20 extended limbic nuclei, neuropeptides, glia, and memory replay
 - `LIMBIC_PROMPTS_V4.md` — 20 amygdala nuclei, vmPFC extinction, brainstem autonomic, BBB, and neurogenesis
+- `LIMBIC_PROMPTS_V5.md` — 20 advanced neurochemical/structural modules (cerebellum, PAG columns, prefrontal gating, thermoregulation, sleep, glymphatics, gut-brain axis, hypoxia, pain, mitochondria)
 
 Together they cover the major neurotransmitters, limbic nuclei, autonomic
 regulation, metabolic cofactors, glial clearance, amygdala/vmPFC circuits,
-brainstem interoception, and dashboard tooling.
+brainstem interoception, cerebellar motor control, sleep architecture,
+glymphatic waste clearance, gut-brain signaling, hypoxic adaptation,
+pain gating, and mitochondrial bioenergetics.
 
 ### Batch 1: neurochemistry core
 
@@ -472,6 +508,44 @@ brainstem interoception, and dashboard tooling.
 99. Adult hippocampal neurogenesis gated by BDNF and stress
 100. Blood-brain barrier permeability under chronic stress
 
+### Batch 5: advanced neurochemical / structural modules (V5)
+
+101. Cerebellar Purkinje cell motor-error inhibition
+102. Climbing-fiber error signaling teaches Purkinje
+103. PAG dorsolateral fight-column activation
+104. PAG ventrolateral freeze-column activation
+105. dlPFC maintenance bias vs updating (working memory)
+106. OFC reward valuation updates with experience
+107. Testosterone rises with social victory
+108. Social defeat lowers testosterone and BDNF
+109. NREM slow-wave sleep boosts glymphatic clearance
+110. REM sleep boosts dopamine and hippocampal theta
+111. Preoptic area warmth sensing suppresses histamine/orexin
+112. Brown adipose raises body temperature and metabolism
+113. MD thalamus gates working-memory updating
+114. Pulvinar gates attention to salient stimuli
+115. Medial septum drives hippocampal theta rhythm
+116. Grid-cell theta modulation for spatial memory
+117. Glymphatic clearance removes amyloid-beta during sleep
+118. Glymphatic flow correlates with astrocyte aquaporin-4
+119. Vagal signaling modulates HPA-axis stress responses
+120. Microbiome SCFA/butyrate modulates GABA tone
+121. Estrogen cycle modulates serotonin and BDNF
+122. Progesterone → allopregnanolone → GABA-A enhancement
+123. Hypoxia raises adenosine and suppresses glutamate
+124. HIF-1α guides hypoxic adaptation (glycolysis/angiogenesis)
+125. PAG-RVMM spinal gate closes with opioid
+126. Gate-control theory: Aβ-fiber inhibits C-fiber pain
+127. NAcc shell mu-opioid "liking" vs dopamine "wanting"
+128. Mast cell degranulation releases histamine and cytokines
+129. Tryptophan depletion lowers serotonin synthesis
+130. Tyrosine competition at blood-brain barrier
+131. Prepulse inhibition gates startle response
+132. BCM theory: LTP threshold slides with activity
+133. Mitochondrial ATP depletes with high task load
+134. Mitochondrial dysfunction increases excitotoxicity risk
+135. Neuropeptide volume transmission diffuses slower than synaptic
+
 ---
 
 ## Layered Affective Architecture
@@ -481,10 +555,10 @@ The limbic system is organized in layers that map from molecular neurochemistry 
 | Layer | System | Variables | Function |
 |-------|--------|-----------|----------|
 | **Genetic** | Pharmacogenomic SNPs | COMT, MTHFR, SLC6A4, DRD2, BDNF, etc. | Constitutional neurochemical set-points |
-| **Molecular** | Neurochemistry | 100+ transmitters, receptors, pools | Real-time chemical state |
-| **Circuit** | Amygdala, PFC, Brainstem | BLA, CeA, IL, PL, LC, PBN, NTS | Appraisal, extinction, autonomic |
+| **Molecular** | Neurochemistry | 60+ transmitters, receptors, pools | Real-time chemical state |
+| **Circuit** | Amygdala, PFC, Brainstem, Cerebellum | BLA, CeA, IL, PL, LC, PBN, NTS, Purkinje, PAG columns | Appraisal, extinction, autonomic, motor error |
 | **Affective** | VAD vector | Valence, Arousal, Dominance | Unified emotional state |
-| **Drive** | Hypothalamus | Rest, task-load, safety, error | Homeostatic needs |
+| **Drive** | Hypothalamus | Rest, task-load, safety, error, temperature | Homeostatic needs |
 | **Expression** | Temperament | Warmth, speed, cling, caution | Output behavioral style |
 
 ## 52 Remedy Personality Presets
@@ -510,11 +584,11 @@ Some notable profiles:
 | Profile | Valence | Arousal | Dominance | Key traits |
 |---------|---------|---------|-----------|------------|
 | `pulsatilla` | +0.25 | 0.35 | 0.45 | Warm, changeable, seeks reassurance |
-| `bryonia` | -0.05 | 0.15 | 0.65 | Dry, irritable, wants stillness |
+| `bryonia` | −0.05 | 0.15 | 0.65 | Dry, irritable, wants stillness |
 | `tarantula` | +0.10 | 0.60 | 0.55 | Quick, excitable, impulsive |
-| `gelsemium` | -0.25 | 0.15 | 0.25 | Fearful, timid, hides |
-| `sepia` | -0.20 | 0.10 | 0.40 | Indifferent, sluggish, apathetic |
-| `helleborus` | -0.35 | 0.05 | 0.30 | Frozen apathy, deep stillness |
+| `gelsemium` | −0.25 | 0.15 | 0.25 | Fearful, timid, hides |
+| `sepia` | −0.20 | 0.10 | 0.40 | Indifferent, sluggish, apathetic |
+| `helleborus` | −0.35 | 0.05 | 0.30 | Frozen apathy, deep stillness |
 | `veratrum` | +0.05 | 0.45 | 0.70 | Zealous, strict, high dominance |
 
 ## Metabolic SNP Module

@@ -121,6 +121,88 @@ class NeurochemicalState:
     lc_mode: float = 0.0               # 0=tonic, 1=phasic locus coeruleus
     nucleus_reuniens: float = 0.0    # thalamic bridge hippocampus-PFC
 
+    # V5 additions — 20 testable modules
+    # 1. Cerebellar cortical layers
+    purkinje_output: float = 0.2        # Purkinje cell inhibitory output
+    climbing_fiber_error: float = 0.0   # Inferior olive error signal
+
+    # 2. PAG columnar organization
+    pag_dorsolateral: float = 0.0       # fight column
+    pag_ventrolateral: float = 0.0      # freeze column
+    pag_lateral: float = 0.0              # flight column
+    pag_periaqueductal_gray: float = 0.0 # quiescence column
+
+    # 3. Prefrontal working memory gating
+    prefrontal_maintenance_bias: float = 0.5  # dlPFC D1/D2 balance
+    ofc_reward_valuation: float = 0.5         # orbitofrontal expected value
+
+    # 4. Testosterone / social dominance
+    testosterone: float = 0.4             # androgen level
+
+    # 5. Sleep architecture
+    nrem_slow_wave: float = 0.0         # delta power during NREM
+    rem_theta: float = 0.0              # theta power during REM
+
+    # 6. Thermoregulation
+    preoptic_warmth: float = 0.3        # preoptic area temperature sensing
+    brown_adipose_activity: float = 0.2 # thermogenesis
+    body_temperature: float = 0.5        # core temperature
+
+    # 7. Thalamic relay nuclei
+    md_thalamus: float = 0.2            # mediodorsal thalamus (WM gating)
+    pulvinar: float = 0.1               # pulvinar (attention salience)
+
+    # 8. Theta rhythm generation
+    medial_septum: float = 0.2          # septal theta pacemaker
+    hippocampal_theta: float = 0.2      # theta oscillation power
+    grid_cell_modulation: float = 0.1   # entorhinal grid cell firing
+
+    # 9. Glymphatic system
+    glymphatic_flow: float = 0.2        # CSF-ISF exchange rate
+    amyloid_beta: float = 0.3           # amyloid-beta accumulation
+    aquaporin_4: float = 0.4            # astrocyte water channel
+
+    # 10. Gut-brain axis
+    vagal_afferent: float = 0.3         # vagus nerve gut signaling
+    butyrate: float = 0.2               # SCFA from microbiome
+
+    # 11. Estrogen / progesterone
+    estrogen: float = 0.5               # estradiol level
+    progesterone: float = 0.4           # progesterone level
+    allopregnanolone: float = 0.2       # GABA-A modulating metabolite
+
+    # 12. Hypoxic response
+    oxygen_saturation: float = 0.95     # blood oxygen
+    adenosine: float = 0.2              # protective adenosine surge
+    hif1_alpha: float = 0.0             # hypoxia-inducible factor
+
+    # 13. Descending pain control
+    rvmm_activity: float = 0.2          # rostral ventromedial medulla
+    spinal_opioid: float = 0.2          # spinal cord opioid release
+    ab_fiber: float = 0.3               # Aβ touch/pressure fiber
+
+    # 14. Hedonic hotspots
+    nacc_shell_liking: float = 0.2      # μ-opioid hedonic pleasure
+
+    # 15. Mast cell-neuroimmune
+    mast_cell_activation: float = 0.0   # mast cell degranulation
+
+    # 16. Amino acid precursors
+    tryptophan: float = 0.5             # serotonin precursor
+    tyrosine: float = 0.5               # dopamine/NE precursor
+
+    # 17. Prepulse inhibition
+    startle_response: float = 0.2       # acoustic startle magnitude
+    prepulse_inhibition: float = 0.5     # PPI gating ratio
+
+    # 18. Synaptic plasticity
+    ltp_threshold: float = 0.5           # BCM sliding threshold
+    synaptic_change: float = 0.0        # net LTP/LTD direction
+
+    # 19. Mitochondrial bioenergetics
+    mitochondrial_atp: float = 0.7      # cellular ATP
+    reactive_oxygen_species: float = 0.1 # ROS oxidative stress
+
     # Composite / derived
     heart_rate_variability: float = 0.5
     respiration_rate: float = 0.3
@@ -211,6 +293,50 @@ class NeurochemicalState:
             medial_habenula=clamp01(self.medial_habenula),
             lc_mode=clamp01(self.lc_mode),
             nucleus_reuniens=clamp01(self.nucleus_reuniens),
+            # V5 additions
+            purkinje_output=clamp01(self.purkinje_output),
+            climbing_fiber_error=clamp01(self.climbing_fiber_error),
+            pag_dorsolateral=clamp01(self.pag_dorsolateral),
+            pag_ventrolateral=clamp01(self.pag_ventrolateral),
+            pag_lateral=clamp01(self.pag_lateral),
+            pag_periaqueductal_gray=clamp01(self.pag_periaqueductal_gray),
+            prefrontal_maintenance_bias=clamp01(self.prefrontal_maintenance_bias),
+            ofc_reward_valuation=clamp01(self.ofc_reward_valuation),
+            testosterone=clamp01(self.testosterone),
+            nrem_slow_wave=clamp01(self.nrem_slow_wave),
+            rem_theta=clamp01(self.rem_theta),
+            preoptic_warmth=clamp01(self.preoptic_warmth),
+            brown_adipose_activity=clamp01(self.brown_adipose_activity),
+            body_temperature=clamp01(self.body_temperature),
+            md_thalamus=clamp01(self.md_thalamus),
+            pulvinar=clamp01(self.pulvinar),
+            medial_septum=clamp01(self.medial_septum),
+            hippocampal_theta=clamp01(self.hippocampal_theta),
+            grid_cell_modulation=clamp01(self.grid_cell_modulation),
+            glymphatic_flow=clamp01(self.glymphatic_flow),
+            amyloid_beta=clamp01(self.amyloid_beta),
+            aquaporin_4=clamp01(self.aquaporin_4),
+            vagal_afferent=clamp01(self.vagal_afferent),
+            butyrate=clamp01(self.butyrate),
+            estrogen=clamp01(self.estrogen),
+            progesterone=clamp01(self.progesterone),
+            allopregnanolone=clamp01(self.allopregnanolone),
+            oxygen_saturation=clamp01(self.oxygen_saturation),
+            adenosine=clamp01(self.adenosine),
+            hif1_alpha=clamp01(self.hif1_alpha),
+            rvmm_activity=clamp01(self.rvmm_activity),
+            spinal_opioid=clamp01(self.spinal_opioid),
+            ab_fiber=clamp01(self.ab_fiber),
+            nacc_shell_liking=clamp01(self.nacc_shell_liking),
+            mast_cell_activation=clamp01(self.mast_cell_activation),
+            tryptophan=clamp01(self.tryptophan),
+            tyrosine=clamp01(self.tyrosine),
+            startle_response=clamp01(self.startle_response),
+            prepulse_inhibition=clamp01(self.prepulse_inhibition),
+            ltp_threshold=clamp01(self.ltp_threshold),
+            synaptic_change=clamp01(self.synaptic_change),
+            mitochondrial_atp=clamp01(self.mitochondrial_atp),
+            reactive_oxygen_species=clamp01(self.reactive_oxygen_species),
             dmn_activity=clamp01(self.dmn_activity),
             d1_sensitivity=clamp01(self.d1_sensitivity),
             alpha1_sensitivity=clamp01(self.alpha1_sensitivity),
@@ -271,7 +397,7 @@ class NeurochemistryEngine:
 
         # --- Dopamine: updates from reward prediction error ---
         # Depletes with use, recovers with rest/success
-        dopamine_target = 0.35 + 0.45 * clamp01(surprise)
+        dopamine_target = 0.35 + 0.55 * clamp01(surprise)
         # Pool availability limits effective dopamine
         pool_factor = s.dopamine_pool
         s.dopamine = self._toward(s.dopamine, dopamine_target * pool_factor, 0.05 * dt)
@@ -456,7 +582,7 @@ class NeurochemistryEngine:
         s.prolactin = self._toward(s.prolactin, clamp01(prolactin_target), 0.02 * dt)
 
         # Receptor desensitization: sustained high DA or NE, or chronically low pool
-        if s.dopamine > 0.7 or s.dopamine_pool < 0.5:
+        if s.dopamine > 0.6 or s.dopamine_pool < 0.5:
             s.d1_sensitivity = max(s._sensitivity_floor, s.d1_sensitivity - 0.03 * dt)
         else:
             s.d1_sensitivity = min(1.0, s.d1_sensitivity + 0.01 * dt)
@@ -633,6 +759,216 @@ class NeurochemistryEngine:
         bbb_target = 0.3 + 0.4 * s.cortisol + 0.3 * s.cytokine_load - 0.3 * s.bdnf
         s.bbb_permeability = self._toward(s.bbb_permeability, clamp01(bbb_target), 0.15 * dt)
 
+        # -----------------------------------------------------------------------
+        # V5 additions — 20 testable modules
+        # -----------------------------------------------------------------------
+
+        # 1. Cerebellar cortical layers
+        # Climbing fiber carries motor error signal
+        cf_target = 0.1 + 0.8 * drive_error_temperature
+        s.climbing_fiber_error = self._toward(s.climbing_fiber_error, clamp01(cf_target), 0.30 * dt)
+        # Purkinje output rises with climbing fiber error, suppresses fastigial
+        purkinje_target = 0.2 + 0.7 * s.climbing_fiber_error
+        s.purkinje_output = self._toward(s.purkinje_output, clamp01(purkinje_target), 0.18 * dt)
+        s.fastigial_activity = max(0.0, s.fastigial_activity - s.purkinje_output * 0.25 * dt)
+
+        # 2. PAG columnar organization
+        # Dorsolateral = fight (high dominance + threat)
+        pag_dl = 0.1 + 0.7 * clamp01(appraisal_dominance) + 0.3 * (1 - drive_safety)
+        s.pag_dorsolateral = self._toward(s.pag_dorsolateral, clamp01(pag_dl), 0.25 * dt)
+        # Ventrolateral = freeze (high threat, low dominance)
+        pag_vl = 0.1 + 0.6 * (1 - drive_safety) - 0.3 * clamp01(appraisal_dominance)
+        s.pag_ventrolateral = self._toward(s.pag_ventrolateral, clamp01(pag_vl), 0.15 * dt)
+        # Lateral = flight (high arousal, moderate threat)
+        pag_lat = 0.1 + 0.5 * appraisal_arousal * (1 - drive_safety)
+        s.pag_lateral = self._toward(s.pag_lateral, clamp01(pag_lat), 0.15 * dt)
+        # Periaqueductal gray = quiescence (high safety)
+        pag_q = 0.1 + 0.5 * drive_safety
+        s.pag_periaqueductal_gray = self._toward(s.pag_periaqueductal_gray, clamp01(pag_q), 0.10 * dt)
+
+        # 3. Prefrontal working memory gating
+        # dlPFC maintenance bias: high mesocortical DA + working memory load
+        pfc_target = 0.3 + 0.5 * s.dopamine_mesocortical * s.d1_sensitivity + 0.3 * drive_task_load
+        s.prefrontal_maintenance_bias = self._toward(s.prefrontal_maintenance_bias, clamp01(pfc_target), 0.10 * dt)
+        # OFC reward valuation tracks expected reward vs actual dopamine
+        ofc_target = 0.3 + 0.4 * expected_reward + 0.3 * s.dopamine
+        s.ofc_reward_valuation = self._toward(s.ofc_reward_valuation, clamp01(ofc_target), 0.08 * dt)
+
+        # 4. Testosterone / social dominance
+        # Testosterone rises with social victories and high dominance
+        t_target = 0.3 + 0.3 * s.dopamine + 0.3 * clamp01(appraisal_dominance) + 0.2 * drive_safety - 0.4 * drive_error_temperature
+        s.testosterone = self._toward(s.testosterone, clamp01(t_target), 0.08 * dt)
+        # Testosterone suppresses fear circuits
+        s.cea = max(0.0, s.cea - s.testosterone * 0.15 * dt)
+        s.bla = max(0.0, s.bla - s.testosterone * 0.08 * dt)
+        # Social defeat (repeated errors) lowers T and BDNF
+        if drive_error_temperature > 0.5:
+            s.testosterone = max(0.0, s.testosterone - 0.08 * dt)
+            s.bdnf = max(0.0, s.bdnf - 0.05 * dt)
+
+        # 5. Sleep architecture
+        # NREM delta during high sleep pressure + melatonin
+        nrem_target = 0.0 + 0.6 * s.sleep_pressure + 0.4 * s.melatonin - 0.2 * s.histamine
+        s.nrem_slow_wave = self._toward(s.nrem_slow_wave, clamp01(nrem_target), 0.12 * dt)
+        # REM theta: high ACh, low NE, moderate sleep pressure
+        rem_target = 0.0 + 0.4 * s.acetylcholine + 0.3 * s.sleep_pressure - 0.4 * s.norepinephrine
+        s.rem_theta = self._toward(s.rem_theta, clamp01(rem_target), 0.10 * dt)
+        # REM selectively boosts dopamine
+        if s.rem_theta > 0.3:
+            s.dopamine = min(1.0, s.dopamine + 0.02 * dt)
+
+        # 6. Thermoregulation
+        # Preoptic warmth sensing: body temperature + metabolic heat
+        po_target = 0.3 + 0.5 * s.body_temperature + 0.3 * metabolic_energy
+        s.preoptic_warmth = self._toward(s.preoptic_warmth, clamp01(po_target), 0.12 * dt)
+        # High PO warmth suppresses wake circuits
+        if s.preoptic_warmth > 0.4:
+            s.orexin = max(0.0, s.orexin - 0.12 * dt)
+            s.histamine = max(0.0, s.histamine - 0.08 * dt)
+        # Brown adipose thermogenesis: NE drives heat production
+        bat_target = 0.2 + 0.6 * s.norepinephrine - 0.3 * s.body_temperature
+        s.brown_adipose_activity = self._toward(s.brown_adipose_activity, clamp01(bat_target), 0.12 * dt)
+        s.body_temperature = self._toward(s.body_temperature, 0.5 + 0.35 * s.brown_adipose_activity - 0.2 * s.preoptic_warmth, 0.06 * dt)
+
+        # 7. Thalamic relay nuclei
+        # MD thalamus gates working memory
+        md_target = 0.2 + 0.5 * drive_task_load + 0.3 * s.acetylcholine
+        s.md_thalamus = self._toward(s.md_thalamus, clamp01(md_target), 0.10 * dt)
+        # Pulvinar gates attention salience
+        pulvinar_target = 0.1 + 0.5 * novelty + 0.3 * s.norepinephrine
+        s.pulvinar = self._toward(s.pulvinar, clamp01(pulvinar_target), 0.12 * dt)
+
+        # 8. Theta rhythm generation
+        # Medial septum paces hippocampal theta
+        septum_target = 0.2 + 0.5 * s.acetylcholine + 0.3 * s.gaba
+        s.medial_septum = self._toward(s.medial_septum, clamp01(septum_target), 0.10 * dt)
+        # Hippocampal theta
+        theta_target = 0.2 + 0.6 * s.medial_septum + 0.3 * s.theta_gamma_coupling - 0.2 * s.cortisol
+        s.hippocampal_theta = self._toward(s.hippocampal_theta, clamp01(theta_target), 0.08 * dt)
+        # Grid cell modulation by theta
+        grid_target = 0.1 + 0.5 * s.hippocampal_theta + 0.3 * s.theta_gamma_coupling
+        s.grid_cell_modulation = self._toward(s.grid_cell_modulation, clamp01(grid_target), 0.08 * dt)
+
+        # 9. Glymphatic system
+        # Aquaporin-4: low NE during sleep promotes channel opening
+        aqp4_target = 0.3 + 0.5 * s.nrem_slow_wave - 0.3 * s.norepinephrine
+        s.aquaporin_4 = self._toward(s.aquaporin_4, clamp01(aqp4_target), 0.08 * dt)
+        # Glymphatic flow: sleep + aquaporin drive clearance
+        gf_target = 0.2 + 0.5 * s.aquaporin_4 + 0.3 * s.nrem_slow_wave
+        s.glymphatic_flow = self._toward(s.glymphatic_flow, clamp01(gf_target), 0.10 * dt)
+        # Amyloid-beta clearance by glymphatic flow
+        s.amyloid_beta = max(0.0, s.amyloid_beta - s.glymphatic_flow * 0.08 * dt)
+        # BBB permeability also allows amyloid entry
+        s.amyloid_beta = min(1.0, s.amyloid_beta + s.bbb_permeability * 0.02 * dt)
+
+        # 10. Gut-brain axis
+        # Vagal afferent signaling from gut
+        vagal_target = 0.3 + 0.3 * s.cytokine_load + 0.2 * s.butyrate - 0.2 * s.cortisol
+        s.vagal_afferent = self._toward(s.vagal_afferent, clamp01(vagal_target), 0.08 * dt)
+        # Vagal stimulation suppresses HPA axis
+        s.cortisol = max(0.0, s.cortisol - s.vagal_afferent * 0.02 * dt)
+        s.crf = max(0.0, s.crf - s.vagal_afferent * 0.02 * dt)
+        # Butyrate enhances GABAergic tone
+        s.gaba = min(1.0, s.gaba + s.butyrate * 0.10 * dt)
+
+        # 11. Estrogen / progesterone
+        # Estrogen modulates serotonin and BDNF
+        estrogen_target = 0.5 + 0.1 * math.sin(circadian_hour * math.pi / 12)  # minimal diurnal
+        s.estrogen = self._toward(s.estrogen, clamp01(estrogen_target), 0.02 * dt)
+        s.bdnf = min(1.0, s.bdnf + s.estrogen * 0.03 * dt)
+        s.serotonin = min(1.0, s.serotonin + s.estrogen * 0.02 * dt)
+        # Progesterone → allopregnanolone → GABA-A enhancement
+        prog_target = 0.4 + 0.2 * math.sin(circadian_hour * math.pi / 12 + math.pi / 4)
+        s.progesterone = self._toward(s.progesterone, clamp01(prog_target), 0.04 * dt)
+        allo_target = 0.2 + 0.6 * s.progesterone
+        s.allopregnanolone = self._toward(s.allopregnanolone, clamp01(allo_target), 0.10 * dt)
+        s.gaba_a_sensitivity = min(2.0, s.gaba_a_sensitivity + s.allopregnanolone * 0.08 * dt)
+
+        # 12. Hypoxic response
+        # Adenosine rises as oxygen falls (protective)
+        adenosine_target = 0.2 + 0.8 * max(0.0, 0.6 - s.oxygen_saturation)
+        s.adenosine = self._toward(s.adenosine, clamp01(adenosine_target), 0.10 * dt)
+        # Adenosine suppresses glutamate (prevents excitotoxicity)
+        s.glutamate = max(0.0, s.glutamate - s.adenosine * 0.08 * dt)
+        # HIF-1α activates under sustained hypoxia
+        hif_target = 0.0 + 0.8 * max(0.0, 0.5 - s.oxygen_saturation)
+        s.hif1_alpha = self._toward(s.hif1_alpha, clamp01(hif_target), 0.08 * dt)
+        # Normal oxygen recovery
+        o2_target = 0.95 - 0.3 * s.cortisol - 0.2 * drive_task_load
+        s.oxygen_saturation = self._toward(s.oxygen_saturation, clamp01(o2_target), 0.02 * dt)
+
+        # 13. Descending pain control
+        # RVMM activated by PAG during opioid analgesia
+        rvmm_target = 0.2 + 0.4 * s.pag_periaqueductal_gray + 0.3 * s.opioid
+        s.rvmm_activity = self._toward(s.rvmm_activity, clamp01(rvmm_target), 0.10 * dt)
+        # Spinal opioid release gates pain
+        spinal_op_target = 0.2 + 0.5 * s.rvmm_activity
+        s.spinal_opioid = self._toward(s.spinal_opioid, clamp01(spinal_op_target), 0.10 * dt)
+        s.substance_p = max(0.0, s.substance_p - s.spinal_opioid * 0.12 * dt)
+        # Gate control: Aβ fibers inhibit pain
+        s.substance_p = max(0.0, s.substance_p - s.ab_fiber * 0.10 * dt)
+
+        # 14. Hedonic hotspots (NAcc shell liking vs wanting)
+        liking_target = 0.2 + 0.6 * s.opioid
+        s.nacc_shell_liking = self._toward(s.nacc_shell_liking, clamp01(liking_target), 0.10 * dt)
+
+        # 15. Mast cell-neuroimmune
+        # Mast cells degranulate under IgE-like stress signals
+        mast_target = 0.0 + 0.5 * s.cytokine_load + 0.3 * drive_error_temperature + 0.2 * s.cortisol
+        s.mast_cell_activation = self._toward(s.mast_cell_activation, clamp01(mast_target), 0.08 * dt)
+        # Mast cell releases histamine and sensitizes pain
+        s.histamine = min(1.0, s.histamine + s.mast_cell_activation * 0.10 * dt)
+        s.substance_p = min(1.0, s.substance_p + s.mast_cell_activation * 0.06 * dt)
+
+        # 16. Amino acid precursor competition
+        # Tryptophan → serotonin; depletion lowers 5-HT
+        trp_target = 0.5 - 0.2 * s.cytokine_load  # inflammation shunts Trp to kynurenine
+        s.tryptophan = self._toward(s.tryptophan, clamp01(trp_target), 0.05 * dt)
+        s.serotonin = self._toward(s.serotonin, clamp01(0.3 + 0.5 * s.tryptophan), 0.05 * dt)
+        # Tyrosine → dopamine/NE; high tyrosine favors catecholamines
+        tyr_target = 0.5 + 0.1 * drive_task_load
+        s.tyrosine = self._toward(s.tyrosine, clamp01(tyr_target), 0.05 * dt)
+        s.dopamine = min(1.0, s.dopamine + s.tyrosine * 0.03 * dt)
+        s.norepinephrine = min(1.0, s.norepinephrine + s.tyrosine * 0.02 * dt)
+
+        # 17. Prepulse inhibition
+        # Startle rises with high NE and low safety
+        startle_target = 0.2 + 0.5 * s.norepinephrine + 0.3 * (1 - drive_safety)
+        s.startle_response = self._toward(s.startle_response, clamp01(startle_target), 0.15 * dt)
+        # Prepulse reduces startle via gating
+        s.startle_response = max(0.0, s.startle_response - s.prepulse_inhibition * 0.5 * dt)
+        # PPI itself improves with practice
+        ppi_target = 0.5 + 0.2 * s.gaba
+        s.prepulse_inhibition = self._toward(s.prepulse_inhibition, clamp01(ppi_target), 0.06 * dt)
+
+        # 18. Synaptic plasticity (BCM metaplasticity)
+        # Activity history sets sliding LTP threshold
+        activity_history = s.dopamine * 0.4 + s.acetylcholine * 0.3 + drive_task_load * 0.3
+        ltp_thresh_target = 0.4 + 0.4 * activity_history
+        s.ltp_threshold = self._toward(s.ltp_threshold, clamp01(ltp_thresh_target), 0.05 * dt)
+        # Weak activation below threshold → LTD; strong → LTP
+        activation_strength = s.glutamate * s.glun2b_sensitivity
+        if activation_strength < s.ltp_threshold * 0.7:
+            s.synaptic_change = self._toward(s.synaptic_change, -0.5, 0.05 * dt)
+        elif activation_strength > s.ltp_threshold * 1.3:
+            s.synaptic_change = self._toward(s.synaptic_change, 0.5, 0.05 * dt)
+        else:
+            s.synaptic_change = self._toward(s.synaptic_change, 0.0, 0.03 * dt)
+
+        # 19. Mitochondrial bioenergetics
+        # ATP drops with sustained task load and stress
+        atp_target = 0.7 - 0.5 * drive_task_load - 0.3 * s.cortisol + 0.1 * metabolic_energy
+        s.mitochondrial_atp = self._toward(s.mitochondrial_atp, clamp01(atp_target), 0.10 * dt)
+        # ROS rises when ATP drops and calcium is high
+        ros_target = 0.1 + 0.5 * max(0.0, 0.6 - s.mitochondrial_atp) + 0.2 * s.glutamate
+        s.reactive_oxygen_species = self._toward(s.reactive_oxygen_species, clamp01(ros_target), 0.08 * dt)
+        # Mitochondrial dysfunction increases excitotoxicity risk
+        if s.mitochondrial_atp < 0.3 and s.glutamate > 0.6:
+            s.reactive_oxygen_species = min(1.0, s.reactive_oxygen_species + 0.15 * dt)
+
+        # 20. Neuropeptide transmission characteristics (volume transmission slower)
+        # Already captured by oxytocin/dynorphin slow decay — tested separately
+
         self.state = s.clamp()
 
     def excitotoxicity_risk(self) -> float:
@@ -642,6 +978,7 @@ class NeurochemistryEngine:
             + s.quinolinic_acid * 0.35
             + (1 - s.glt1_activity) * 0.2
             - s.gaba * 0.1
+            + max(0.0, 0.6 - s.mitochondrial_atp) * 0.3  # V5: mitochondrial dysfunction
         )
 
     def rmtg_brake(self) -> float:

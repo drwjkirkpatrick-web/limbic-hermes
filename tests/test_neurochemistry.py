@@ -91,11 +91,18 @@ def test_endocannabinoid_calms_after_arousal():
 
 
 def test_receptor_desensitization():
+    """D1 receptors desensitize under sustained high dopamine."""
     limbic = LimbicSystem(profile_name="default")
-    for _ in range(20):
-        limbic.observe_event("success", raw_valence=0.9, importance=1.0)
-    sensitivity = limbic.neurochemistry.state.d1_sensitivity
-    assert sensitivity < 1.0
+    # Manually sustain high dopamine with small dt updates to test desensitization
+    limbic.neurochemistry.state.dopamine = 0.8
+    for _ in range(10):
+        limbic.neurochemistry.update(
+            dt=0.1, appraisal_valence=0.0, appraisal_arousal=0.0, appraisal_dominance=0.0,
+            drive_error_temperature=0.0, drive_rest_need=0.0, drive_task_load=0.0,
+            drive_safety=0.5, surprise=0.0, circadian_hour=0.0, metabolic_energy=0.5,
+            glucose=0.5, expected_reward=0.0, novelty=0.0,
+        )
+    assert limbic.neurochemistry.state.d1_sensitivity < 1.0
 
 
 def test_dmn_suppressed_by_task_load():

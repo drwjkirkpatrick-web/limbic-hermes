@@ -582,6 +582,88 @@ class LimbicSystem:
             "neurogenesis_rate": self._round(n.neurogenesis_rate),
             "bbb_permeability": self._round(n.bbb_permeability),
             "nucleus_reuniens": self._round(n.nucleus_reuniens),
+            # V5 additions
+            "cerebellum": {
+                "purkinje": self._round(n.purkinje_output),
+                "climbing_fiber": self._round(n.climbing_fiber_error),
+            },
+            "pag": {
+                "dorsolateral": self._round(n.pag_dorsolateral),
+                "ventrolateral": self._round(n.pag_ventrolateral),
+                "tier": self._compute_pag()["tier"],
+                "active": self._compute_pag()["active"],
+                "passive": self._compute_pag()["passive"],
+                "threat_detected": self._compute_pag()["threat_detected"],
+                "lateral": self._round(n.pag_lateral),
+                "periaqueductal_gray": self._round(n.pag_periaqueductal_gray),
+            },
+            "prefrontal": {
+                "maintenance_bias": self._round(n.prefrontal_maintenance_bias),
+                "ofc_valuation": self._round(n.ofc_reward_valuation),
+            },
+            "testosterone": self._round(n.testosterone),
+            "sleep_architecture": {
+                "nrem_slow_wave": self._round(n.nrem_slow_wave),
+                "rem_theta": self._round(n.rem_theta),
+            },
+            "thermoregulation": {
+                "preoptic_warmth": self._round(n.preoptic_warmth),
+                "brown_adipose": self._round(n.brown_adipose_activity),
+                "body_temperature": self._round(n.body_temperature),
+            },
+            "thalamus": {
+                "md": self._round(n.md_thalamus),
+                "pulvinar": self._round(n.pulvinar),
+            },
+            "theta_rhythm": {
+                "medial_septum": self._round(n.medial_septum),
+                "hippocampal_theta": self._round(n.hippocampal_theta),
+                "grid_cell_modulation": self._round(n.grid_cell_modulation),
+            },
+            "glymphatic": {
+                "flow": self._round(n.glymphatic_flow),
+                "amyloid_beta": self._round(n.amyloid_beta),
+                "aquaporin_4": self._round(n.aquaporin_4),
+            },
+            "gut_brain": {
+                "vagal_afferent": self._round(n.vagal_afferent),
+                "butyrate": self._round(n.butyrate),
+            },
+            "hormones": {
+                "estrogen": self._round(n.estrogen),
+                "progesterone": self._round(n.progesterone),
+                "allopregnanolone": self._round(n.allopregnanolone),
+            },
+            "hypoxia": {
+                "oxygen_saturation": self._round(n.oxygen_saturation),
+                "adenosine": self._round(n.adenosine),
+                "hif1_alpha": self._round(n.hif1_alpha),
+            },
+            "pain_control": {
+                "rvmm": self._round(n.rvmm_activity),
+                "spinal_opioid": self._round(n.spinal_opioid),
+                "ab_fiber": self._round(n.ab_fiber),
+            },
+            "hedonic": {
+                "nacc_shell_liking": self._round(n.nacc_shell_liking),
+            },
+            "mast_cell": self._round(n.mast_cell_activation),
+            "precursors": {
+                "tryptophan": self._round(n.tryptophan),
+                "tyrosine": self._round(n.tyrosine),
+            },
+            "prepulse_inhibition": {
+                "startle": self._round(n.startle_response),
+                "ppi": self._round(n.prepulse_inhibition),
+            },
+            "synaptic_plasticity": {
+                "ltp_threshold": self._round(n.ltp_threshold),
+                "synaptic_change": self._round(n.synaptic_change),
+            },
+            "mitochondria": {
+                "atp": self._round(n.mitochondrial_atp),
+                "ros": self._round(n.reactive_oxygen_species),
+            },
             # Metabolic SNP profile
             "snp_profile": (
                 {"name": self.snp_profile.name, "effects": self.snp_profile.get_variant_effects()}
