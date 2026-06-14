@@ -136,6 +136,16 @@ This is the same representation used in recent LLM emotion-steering work
 | `Polyvagal` | autonomic state | Ventral vagal / sympathetic / dorsal vagal gating |
 | `Astroglial` | metabolic support | GLT-1 glutamate clearance, glycogen-lactate shuttle |
 | `Microglia` | neuroimmune memory | Primed glia amplify future cytokine spikes |
+| `BLA / CeA` | amygdala nuclei | Basolateral sensory appraisal; central fear output |
+| `vmPFC` | prefrontal extinction | Infralimbic extinction vs prelimbic fear expression |
+| `SCN` | master circadian clock | Entrains melatonin/cortisol phase |
+| `AgRP / POMC` | hunger circuits | Low glucose → AgRP; high energy → POMC satiety |
+| `Claustrum` | salience gating | Transient boost on novel events, habituation on repeat |
+| `Parabrachial` | interoceptive relay | Cytokine + pain integration |
+| `RVLM / NTS` | autonomic brainstem | Sympathetic tone and vagal afferent gating |
+| `Fastigial` | cerebellar timing | Predictable inter-event interval boost |
+| `PVN` | stress integration | CRF output gated by amygdala, BNST, NTS |
+| `Medial Habenula` | value comparison | Suppresses dopamine when expected > actual |
 
 ### Neurochemistry layer
 
@@ -337,16 +347,18 @@ dashboard reads the same key.
 
 ---
 
-## 80 biochemistry-grounded improvements
+## 100 biochemistry-grounded improvements
 
-The build is organized into three testable prompt documents:
+The build is organized into four testable prompt documents:
 
 - `LIMBIC_PROMPTS_V1.md` — the original 31 improvements
 - `LIMBIC_PROMPTS_V2.md` — the follow-up 29 improvements
-- `LIMBIC_PROMPTS_V3.md` — 20 more biochemistry-grounded modules
+- `LIMBIC_PROMPTS_V3.md` — 20 extended limbic nuclei, neuropeptides, glia, and memory replay
+- `LIMBIC_PROMPTS_V4.md` — 20 amygdala nuclei, vmPFC extinction, brainstem autonomic, BBB, and neurogenesis
 
 Together they cover the major neurotransmitters, limbic nuclei, autonomic
-regulation, metabolic cofactors, glial clearance, and dashboard tooling.
+regulation, metabolic cofactors, glial clearance, amygdala/vmPFC circuits,
+brainstem interoception, and dashboard tooling.
 
 ### Batch 1: neurochemistry core
 
@@ -436,6 +448,29 @@ regulation, metabolic cofactors, glial clearance, and dashboard tooling.
 78. Hippocampal sharp-wave replay during rest
 79. Ventral pallidum hedonic "liking" distinct from wanting
 80. Subgenual ACC rumination / slow negative recovery
+
+### Batch 4: amygdala nuclei, vmPFC extinction, brainstem autonomic, BBB, neurogenesis
+
+81. Basolateral amygdala (BLA) sensory appraisal and CeA fear output
+82. Infralimbic (IL) extinction vs prelimbic (PL) fear expression
+83. Dentate gyrus pattern separation for similar events
+84. CA3 pattern completion on partial cues
+85. Striatal D1 direct pathway (action vigor) vs D2 autoreceptor suppression
+86. Locus coeruleus tonic-to-phasic mode switch
+87. SCN master clock entrainment of melatonin/cortisol
+88. Arcuate AgRP hunger vs POMC satiety circuits
+89. VTA GABA interneuron brake on dopamine
+90. Medial habenula value comparison / dopamine suppression
+91. Nucleus reuniens PFC-hippocampal bridge during theta-gamma
+92. Claustrum salience gating with novelty and habituation
+93. TMN histamine source for cortical arousal
+94. Parabrachial nucleus (PBN) interoceptive relay
+95. RVLM sympathetic tone control
+96. NTS vagal afferent gating of polyvagal state
+97. Fastigial cerebellar timing prediction
+98. PVN stress integration (amygdala + BNST + NTS → CRF)
+99. Adult hippocampal neurogenesis gated by BDNF and stress
+100. Blood-brain barrier permeability under chronic stress
 
 ---
 

@@ -295,6 +295,20 @@
       </div>
     </section>
 
+    <section class="panel" style="grid-column: span 2;">
+      <h2>🦠 V4 Amygdala, Brainstem &amp; Autonomic</h2>
+      <div class="two-col">
+        <div>
+          <h3 style="font-size:0.8rem;color:var(--accent2);margin:0.4rem 0 0.4rem;">Amygdala &amp; vmPFC</h3>
+          <div class="metric-grid" id="amygdalaMetrics"></div>
+        </div>
+        <div>
+          <h3 style="font-size:0.8rem;color:var(--accent2);margin:0.4rem 0 0.4rem;">Brainstem &amp; Interoception</h3>
+          <div class="metric-grid" id="brainstemMetrics"></div>
+        </div>
+      </div>
+    </section>
+
     <section class="panel">
       <h2>🔒 Receptor Sensitivities &amp; Pools</h2>
       <div class="metric-grid" id="receptorMetrics"></div>
@@ -442,6 +456,32 @@
         metric('Sleep Pressure', state.sleep_pressure),
         metric('Glycogen', state.glycogen),
         metric('Lactate', state.lactate),
+      ].join('');
+
+      // V4 dashboard panels
+      document.getElementById('amygdalaMetrics').innerHTML = [
+        metric('BLA', (state.amygdala || {}).basolateral),
+        metric('CeA', (state.amygdala || {}).central),
+        metric('IL (extinction)', (state.vmpfc || {}).infralimbic),
+        metric('PL (fear)', (state.vmpfc || {}).prelimbic),
+        metric('LC Mode', state.locus_coeruleus?.mode === 'phasic' ? 1 : 0),
+        metric('AgRP', (state.hunger_circuits || {}).agrp),
+        metric('POMC', (state.hunger_circuits || {}).pomc),
+        metric('Net Hunger', (state.hunger_circuits || {}).net_hunger),
+        metric('Medial Habenula', state.medial_habenula),
+        metric('Claustrum', state.claustrum),
+      ].join('');
+
+      document.getElementById('brainstemMetrics').innerHTML = [
+        metric('TMN', state.tmn),
+        metric('PBN', state.parabrachial),
+        metric('RVLM', state.rvlm),
+        metric('NTS', state.nts),
+        metric('Fastigial', state.fastigial),
+        metric('PVN CRF', (state.pvn || {}).crf_output),
+        metric('Neurogenesis', state.neurogenesis_rate),
+        metric('BBB Permeability', state.bbb_permeability),
+        metric('Nucleus Reuniens', state.nucleus_reuniens),
       ].join('');
 
       document.getElementById('receptorMetrics').innerHTML = [

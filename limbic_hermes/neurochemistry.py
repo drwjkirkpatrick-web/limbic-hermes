@@ -99,6 +99,28 @@ class NeurochemicalState:
     sleep_pressure: float = 0.0          # homeostatic sleep drive
     theta_gamma_coupling: float = 0.3    # oscillatory memory index
 
+    # V4 additions
+    vta_gaba: float = 0.2              # VTA interneuron brake on dopamine
+    tmn_activity: float = 0.5          # tuberomammillary nucleus histamine source
+    pbn_activity: float = 0.0          # parabrachial nucleus interoceptive relay
+    rvlm_activity: float = 0.3         # rostral ventrolateral medulla sympathetic
+    nts_activity: float = 0.3            # nucleus tractus solitarius vagal afferents
+    fastigial_activity: float = 0.0    # cerebellar fastigial timing
+    pvn_crf: float = 0.0               # paraventricular nucleus CRF output
+    neurogenesis_rate: float = 0.5     # adult hippocampal neurogenesis
+    bbb_permeability: float = 0.3      # blood-brain barrier permeability
+    claustrum: float = 0.0             # salience gating / awareness
+    scn_phase: float = 0.5             # suprachiasmatic nucleus circadian phase
+    agrp: float = 0.3                  # arcuate AgRP hunger promoter
+    pomc: float = 0.3                  # arcuate POMC satiety promoter
+    il_activity: float = 0.3           # infralimbic vmPFC extinction
+    pl_activity: float = 0.3           # prelimbic vmPFC fear expression
+    bla: float = 0.0                   # basolateral amygdala sensory appraisal
+    cea: float = 0.0                   # central amygdala fear output
+    medial_habenula: float = 0.0       # value comparison / disappointment
+    lc_mode: float = 0.0               # 0=tonic, 1=phasic locus coeruleus
+    nucleus_reuniens: float = 0.0    # thalamic bridge hippocampus-PFC
+
     # Composite / derived
     heart_rate_variability: float = 0.5
     respiration_rate: float = 0.3
@@ -169,6 +191,26 @@ class NeurochemicalState:
             microglia_state=clamp01(self.microglia_state),
             sleep_pressure=clamp01(self.sleep_pressure),
             theta_gamma_coupling=clamp01(self.theta_gamma_coupling),
+            vta_gaba=clamp01(self.vta_gaba),
+            tmn_activity=clamp01(self.tmn_activity),
+            pbn_activity=clamp01(self.pbn_activity),
+            rvlm_activity=clamp01(self.rvlm_activity),
+            nts_activity=clamp01(self.nts_activity),
+            fastigial_activity=clamp01(self.fastigial_activity),
+            pvn_crf=clamp01(self.pvn_crf),
+            neurogenesis_rate=clamp01(self.neurogenesis_rate),
+            bbb_permeability=clamp01(self.bbb_permeability),
+            claustrum=clamp01(self.claustrum),
+            scn_phase=clamp01(self.scn_phase),
+            agrp=clamp01(self.agrp),
+            pomc=clamp01(self.pomc),
+            il_activity=clamp01(self.il_activity),
+            pl_activity=clamp01(self.pl_activity),
+            bla=clamp01(self.bla),
+            cea=clamp01(self.cea),
+            medial_habenula=clamp01(self.medial_habenula),
+            lc_mode=clamp01(self.lc_mode),
+            nucleus_reuniens=clamp01(self.nucleus_reuniens),
             dmn_activity=clamp01(self.dmn_activity),
             d1_sensitivity=clamp01(self.d1_sensitivity),
             alpha1_sensitivity=clamp01(self.alpha1_sensitivity),
@@ -208,6 +250,9 @@ class NeurochemistryEngine:
         surprise: float,
         circadian_hour: float = 12.0,
         metabolic_energy: float = 0.5,
+        glucose: float = 0.5,
+        expected_reward: float = 0.0,
+        novelty: float = 0.0,
     ) -> None:
         """Advance neurochemical state by one time step."""
         s = self.state
@@ -494,6 +539,99 @@ class NeurochemistryEngine:
         # Theta-gamma coupling: rises with ACh and moderate NE, drops with very high arousal
         tgc_target = 0.2 + 0.5 * s.acetylcholine + 0.3 * s.norepinephrine * (1 - s.norepinephrine)
         s.theta_gamma_coupling = self._toward(s.theta_gamma_coupling, clamp01(tgc_target), 0.04 * dt)
+
+        # ---- V4 additions ----
+        # SCN master clock: phase advances with time; entrains with circadian_hour
+        phase_target = (circadian_hour % 24.0) / 24.0
+        s.scn_phase = self._toward(s.scn_phase, phase_target, 0.10 * dt)
+
+        # BLA sensory appraisal: driven by glutamate + noradrenaline from salient input
+        bla_target = 0.1 + 0.5 * s.glutamate + 0.3 * s.norepinephrine
+        s.bla = self._toward(s.bla, clamp01(bla_target), 0.15 * dt)
+
+        # CeA fear output: driven by BLA + low GABA
+        cea_target = 0.2 + s.bla * 1.5 - s.gaba * 0.5
+        s.cea = self._toward(s.cea, clamp01(cea_target), 0.20 * dt)
+
+        # IL extinction / PL fear expression: IL rises with safety and extinction learning
+        il_target = 0.2 + 0.4 * drive_safety + 0.3 * s.bdnf - 0.2 * s.cortisol
+        s.il_activity = self._toward(s.il_activity, clamp01(il_target), 0.15 * dt)
+        pl_target = 0.2 + 0.4 * (1 - drive_safety) + 0.3 * s.cortisol + 0.2 * s.bla
+        s.pl_activity = self._toward(s.pl_activity, clamp01(pl_target), 0.15 * dt)
+
+        # Locus coeruleus mode: flip toward phasic on high salience, tonic on low arousal
+        lc_target = 1.0 if surprise > 0.5 or s.adrenaline > 0.3 else 0.0
+        s.lc_mode = self._toward(s.lc_mode, lc_target, 0.60 * dt)
+
+        # Hunger circuit: AgRP rises with low glucose, POMC with high metabolic energy
+        agrp_target = 0.3 + 0.6 * max(0, 0.6 - glucose) - 0.3 * metabolic_energy
+        s.agrp = self._toward(s.agrp, clamp01(agrp_target), 0.15 * dt)
+        pomc_target = 0.3 + 0.5 * metabolic_energy - 0.2 * agrp_target
+        s.pomc = self._toward(s.pomc, clamp01(pomc_target), 0.15 * dt)
+
+        # VTA GABA interneuron brake: rises with BNST/RMTg activation
+        vta_gaba_target = 0.2 + 0.3 * s.crf + 0.3 * s.dynorphin + 0.2 * (1 - drive_safety)
+        s.vta_gaba = self._toward(s.vta_gaba, clamp01(vta_gaba_target), 0.15 * dt)
+
+        # Medial habenula value comparison: rises when expected reward > actual dopamine
+        mh_target = max(0, expected_reward - s.dopamine) * 0.8
+        s.medial_habenula = self._toward(s.medial_habenula, clamp01(mh_target), 0.20 * dt)
+
+        # Nucleus reuniens: bridges hippocampus-PFC during rest/theta-gamma
+        nr_target = 0.1 + 0.5 * s.theta_gamma_coupling + 0.3 * s.bdnf - 0.2 * s.cortisol
+        s.nucleus_reuniens = self._toward(s.nucleus_reuniens, clamp01(nr_target), 0.15 * dt)
+
+        # Claustrum salience gating: rises with novel salient events, decays with habituation
+        claustrum_target = 0.1 + 0.5 * novelty - 0.2 * s.sleep_pressure - 0.3 * s.claustrum
+        s.claustrum = self._toward(s.claustrum, clamp01(claustrum_target), 0.20 * dt)
+
+        # TMN histamine source: inverse to melatonin and sleep pressure
+        tmn_target = 0.5 + 0.3 * (1 - s.melatonin) - 0.3 * s.sleep_pressure + 0.2 * s.orexin
+        s.tmn_activity = self._toward(s.tmn_activity, clamp01(tmn_target), 0.15 * dt)
+        # TMN drives histamine; sleep pressure directly suppresses it
+        histamine_target = 0.4 + 0.4 * s.tmn_activity - 0.2 * s.melatonin - 0.4 * s.sleep_pressure
+        s.histamine = self._toward(s.histamine, clamp01(histamine_target), 0.04 * dt)
+
+        # Parabrachial nucleus: interoceptive relay for cytokine + pain
+        pbn_target = 0.1 + 0.4 * s.cytokine_load + 0.4 * s.substance_p + 0.2 * s.cortisol
+        s.pbn_activity = self._toward(s.pbn_activity, clamp01(pbn_target), 0.20 * dt)
+
+        # RVLM sympathetic tone: drives NE and adrenaline; inhibited by high HRV
+        rvlm_target = 0.3 + 0.3 * (1 - drive_safety) + 0.2 * s.cortisol - 0.3 * s.heart_rate_variability
+        s.rvlm_activity = self._toward(s.rvlm_activity, clamp01(rvlm_target), 0.15 * dt)
+        # RVLM drives sympathetic output
+        s.norepinephrine = self._toward(s.norepinephrine, s.norepinephrine + 0.05 * s.rvlm_activity, 0.02 * dt)
+        s.adrenaline = self._toward(s.adrenaline, s.adrenaline + 0.05 * s.rvlm_activity, 0.02 * dt)
+
+        # NTS vagal afferents: integrates gut/metabolic signals
+        nts_target = 0.3 + 0.3 * s.cytokine_load + 0.2 * (1 - metabolic_energy) + 0.2 * s.pbn_activity
+        s.nts_activity = self._toward(s.nts_activity, clamp01(nts_target), 0.15 * dt)
+
+        # Fastigial cerebellar timing: rises with predictable inter-event intervals
+        if hasattr(self, '_last_event_time') and dt > 0:
+            interval = dt
+            expected_interval = getattr(self, '_expected_interval', 2.0)
+            # If interval is close to expected, boost fastigial
+            interval_match = max(0, 1.0 - abs(interval - expected_interval) / max(expected_interval, 0.5))
+            fastigial_target = 0.2 + 0.6 * interval_match
+            self._expected_interval = 0.8 * expected_interval + 0.2 * interval
+        else:
+            fastigial_target = 0.1
+            self._last_event_time = 0.0
+            self._expected_interval = 2.0
+        s.fastigial_activity = self._toward(s.fastigial_activity, clamp01(fastigial_target), 0.20 * dt)
+
+        # PVN stress integration: CRF output gated by amygdala, BNST, NTS
+        pvn_target = 0.1 + 0.3 * s.bla + 0.3 * s.crf + 0.2 * s.nts_activity + 0.2 * (1 - drive_safety)
+        s.pvn_crf = self._toward(s.pvn_crf, clamp01(pvn_target), 0.20 * dt)
+
+        # Adult neurogenesis: high BDNF + low cortisol + low cytokine boosts it
+        ng_target = 0.5 + 0.4 * s.bdnf - 0.4 * s.cortisol - 0.3 * s.cytokine_load
+        s.neurogenesis_rate = self._toward(s.neurogenesis_rate, clamp01(ng_target), 0.15 * dt)
+
+        # Blood-brain barrier: chronic stress increases permeability; BDNF tightens it
+        bbb_target = 0.3 + 0.4 * s.cortisol + 0.3 * s.cytokine_load - 0.3 * s.bdnf
+        s.bbb_permeability = self._toward(s.bbb_permeability, clamp01(bbb_target), 0.15 * dt)
 
         self.state = s.clamp()
 

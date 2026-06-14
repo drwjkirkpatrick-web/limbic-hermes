@@ -427,13 +427,20 @@ def test_cortisol_follows_circadian_peak_morning():
 def test_metabolic_energy_modulates_orexin_dopamine():
     """A metabolic_energy input modulates orexin, dopamine, and irritability;
     low energy increases rest_need and caution."""
-    limbic = LimbicSystem(profile_name="default")
-    limbic.set_metabolic_energy(0.9)
-    limbic.update()
-    high = limbic.neurochemistry.state.orexin
-    limbic.set_metabolic_energy(0.1)
-    limbic.update()
-    low = limbic.neurochemistry.state.orexin
+    # High metabolic energy
+    limbic_high = LimbicSystem(profile_name="default")
+    limbic_high.set_metabolic_energy(0.9)
+    for _ in range(3):
+        limbic_high.update()
+    high = limbic_high.neurochemistry.state.orexin
+
+    # Low metabolic energy
+    limbic_low = LimbicSystem(profile_name="default")
+    limbic_low.set_metabolic_energy(0.1)
+    for _ in range(3):
+        limbic_low.update()
+    low = limbic_low.neurochemistry.state.orexin
+
     assert high > low
 
 

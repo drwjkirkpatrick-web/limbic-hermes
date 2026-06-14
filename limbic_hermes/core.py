@@ -351,7 +351,10 @@ class LimbicSystem:
             self.last_negative_event_time = now
 
         # Update neurochemistry state
-        self._update_neurochemistry(appraisal, gated_importance, now=now)
+        self._update_neurochemistry(
+            appraisal, gated_importance, now=now,
+            novelty=1.0 if is_novel else 0.0,
+        )
 
         # Entorhinal novelty boost after neurochemistry update so ACh clearly rises
         if is_novel:
@@ -432,6 +435,9 @@ class LimbicSystem:
             surprise=0.0,
             circadian_hour=self.circadian_hour,
             metabolic_energy=self.metabolic_energy,
+            glucose=self.glucose,
+            expected_reward=self.expected_reward,
+            novelty=0.0,
         )
 
         # Orexin re-evaluated explicitly when metabolic energy changed so tests
@@ -451,6 +457,9 @@ class LimbicSystem:
             surprise=0.0,
             circadian_hour=self.circadian_hour,
             metabolic_energy=self.metabolic_energy,
+            glucose=self.glucose,
+            expected_reward=self.expected_reward,
+            novelty=0.0,
         )
 
         # Baroreflex-like arousal dampening at high HRV
@@ -503,9 +512,6 @@ class LimbicSystem:
             "septal": self._compute_septal(),
             "pag": self._compute_pag(),
             "polyvagal": self._compute_polyvagal(),
-            "locus_coeruleus": {"mode": self.neurochemistry.compute_lc_mode(
-                max(self.drive.task_load, self.working_memory_load), 0.0
-            )},
             "kynurenine": {
                 "kynurenine": n.kynurenine,
                 "quinolinic_acid": n.quinolinic_acid,
@@ -542,6 +548,22 @@ class LimbicSystem:
             "glycogen": self._round(n.glycogen),
             "lactate": self._round(n.lactate),
             "sleep_pressure": self._round(n.sleep_pressure),
+            # V4 additions
+            "amygdala": {"basolateral": self._round(n.bla), "central": self._round(n.cea)},
+            "vmpfc": {"infralimbic": self._round(n.il_activity), "prelimbic": self._round(n.pl_activity)},
+            "locus_coeruleus": {"mode": "phasic" if n.lc_mode > 0.5 else "tonic"},
+            "hunger_circuits": {"agrp": self._round(n.agrp), "pomc": self._round(n.pomc), "net_hunger": self._round(n.agrp - n.pomc)},
+            "medial_habenula": self._round(n.medial_habenula),
+            "claustrum": self._round(n.claustrum),
+            "tmn": self._round(n.tmn_activity),
+            "parabrachial": self._round(n.pbn_activity),
+            "rvlm": self._round(n.rvlm_activity),
+            "nts": self._round(n.nts_activity),
+            "fastigial": self._round(n.fastigial_activity),
+            "pvn": {"crf_output": self._round(n.pvn_crf)},
+            "neurogenesis_rate": self._round(n.neurogenesis_rate),
+            "bbb_permeability": self._round(n.bbb_permeability),
+            "nucleus_reuniens": self._round(n.nucleus_reuniens),
         }
 
     def dominant_affect(self) -> str:
@@ -610,6 +632,9 @@ class LimbicSystem:
             surprise=severity,
             circadian_hour=self.circadian_hour,
             metabolic_energy=self.metabolic_energy,
+            glucose=self.glucose,
+            expected_reward=self.expected_reward,
+            novelty=0.0,
         )
 
     def report_success(self, magnitude: float = 0.5, now: Optional[float] = None) -> None:
@@ -746,7 +771,7 @@ class LimbicSystem:
         self.expected_reward += learning_rate * self.reward_prediction_error
         self.expected_reward = max(-1.0, min(1.0, self.expected_reward))
 
-    def _update_neurochemistry(self, appraisal: Appraisal, gated_importance: float, now: Optional[float] = None) -> None:
+    def _update_neurochemistry(self, appraisal: Appraisal, gated_importance: float, now: Optional[float] = None, novelty: float = 0.0) -> None:
         """Advance neurochemical state in response to an event (event impact)."""
         # Use a fixed event-processing timestep; background drift is handled in update()
         event_dt = 1.0
@@ -764,6 +789,9 @@ class LimbicSystem:
             surprise=abs(self.reward_prediction_error),
             circadian_hour=self.circadian_hour,
             metabolic_energy=self.metabolic_energy,
+            glucose=self.glucose,
+            expected_reward=self.expected_reward,
+            novelty=novelty,
         )
 
     def _thalamic_gate(self, importance: float, appraisal: Appraisal) -> float:
@@ -898,7 +926,7 @@ class LimbicSystem:
     def _compute_nucleus_accumbens(self) -> Dict[str, float]:
         s = self.neurochemistry.state
         # Shell = motivational wanting / salience (dopamine + orexin)
-        shell = clamp01(s.dopamine_mesolimbic * 0.6 + s.orexin * 0.3 + s.neuropeptide_s * 0.1)
+        shell = clamp01(s.dopamine_mesolimbic * 0.6 * s.d1_sensitivity + s.orexin * 0.3 + s.neuropeptide_s * 0.1)
         # Core = action vigor / selection (task load + expected reward)
         core = clamp01(
             max(self.drive.task_load, self.working_memory_load) * 0.5
