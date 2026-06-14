@@ -58,6 +58,8 @@ class DashboardHTTPHandler:
             return self._handle_state(method, body)
         if path == "/api/cofactors":
             return self._handle_cofactors(method, body)
+        if path == "/api/snp":
+            return self._handle_snp(method, body)
         if path == "/" or path == "/index.html":
             dashboard_html = Path(__file__).with_name("dashboard.html")
             return _serve_file(dashboard_html, "text/html; charset=utf-8")
@@ -121,6 +123,37 @@ class DashboardHTTPHandler:
             "cofactors": bridge.limbic.get_cofactors(),
             "state": bridge.state(),
         })
+
+    def _handle_snp(self, method: str, body: bytes) -> tuple:
+        bridge = _get_bridge()
+        if method == "GET":
+            from limbic_hermes.metabolic_snp import get_snp_presets, format_snp_profile_for_dashboard
+            presets = get_snp_presets()
+            active = bridge.limbic.snp_profile
+            return _json_response({
+                "active": format_snp_profile_for_dashboard(active) if active else None,
+                "available": list(presets.keys()),
+            })
+        if method == "POST":
+            try:
+                data = json.loads(body or b"{}")
+            except Exception as e:
+                return _json_response({"error": f"Invalid JSON: {e}"}, 400)
+            snp_profile_name = data.get("snp_profile")
+            if snp_profile_name:
+                try:
+                    bridge.limbic.set_snp_profile(snp_profile_name)
+                    bridge.save()
+                except ValueError as e:
+                    return _json_response({"error": str(e)}, 400)
+            return _json_response({
+                "snp_profile": (
+                    {"name": bridge.limbic.snp_profile.name, "effects": bridge.limbic.snp_profile.get_variant_effects()}
+                    if bridge.limbic.snp_profile else None
+                ),
+                "state": bridge.state(),
+            })
+        return _json_response({"error": "Method not allowed"}, 405)
 
 
 class _BaseHTTPRequestHandler:

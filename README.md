@@ -474,6 +474,83 @@ brainstem interoception, and dashboard tooling.
 
 ---
 
+## Layered Affective Architecture
+
+The limbic system is organized in layers that map from molecular neurochemistry up to expressive temperament:
+
+| Layer | System | Variables | Function |
+|-------|--------|-----------|----------|
+| **Genetic** | Pharmacogenomic SNPs | COMT, MTHFR, SLC6A4, DRD2, BDNF, etc. | Constitutional neurochemical set-points |
+| **Molecular** | Neurochemistry | 100+ transmitters, receptors, pools | Real-time chemical state |
+| **Circuit** | Amygdala, PFC, Brainstem | BLA, CeA, IL, PL, LC, PBN, NTS | Appraisal, extinction, autonomic |
+| **Affective** | VAD vector | Valence, Arousal, Dominance | Unified emotional state |
+| **Drive** | Hypothalamus | Rest, task-load, safety, error | Homeostatic needs |
+| **Expression** | Temperament | Warmth, speed, cling, caution | Output behavioral style |
+
+## 52 Remedy Personality Presets
+
+All 52 constitutional remedy profiles from the Hermes 50-remedy system (plus `default`) are available as temperament presets. Each profile carries:
+
+- **Baseline VAD** — constitutional mood
+- **Threat/reward gain** — reactivity bias
+- **Attention bias** — novelty vs safety seeking
+- **Expression vector** — warmth, speed, cling
+- **Hue hint** — visual identity color
+
+To use a profile:
+
+```python
+from limbic_hermes.core import LimbicSystem
+
+limbic = LimbicSystem(profile_name="pulsatilla")
+```
+
+Some notable profiles:
+
+| Profile | Valence | Arousal | Dominance | Key traits |
+|---------|---------|---------|-----------|------------|
+| `pulsatilla` | +0.25 | 0.35 | 0.45 | Warm, changeable, seeks reassurance |
+| `bryonia` | -0.05 | 0.15 | 0.65 | Dry, irritable, wants stillness |
+| `tarantula` | +0.10 | 0.60 | 0.55 | Quick, excitable, impulsive |
+| `gelsemium` | -0.25 | 0.15 | 0.25 | Fearful, timid, hides |
+| `sepia` | -0.20 | 0.10 | 0.40 | Indifferent, sluggish, apathetic |
+| `helleborus` | -0.35 | 0.05 | 0.30 | Frozen apathy, deep stillness |
+| `veratrum` | +0.05 | 0.45 | 0.70 | Zealous, strict, high dominance |
+
+## Metabolic SNP Module
+
+The `metabolic_snp.py` module maps 21 clinically relevant pharmacogenomic variants to neurochemical modifiers. Each SNP is modeled as a fractional adjustment to baseline neurotransmitters, receptor sensitivity, and temperament parameters.
+
+**Key SNPs included:**
+
+| SNP | Gene | Effect |
+|-----|------|--------|
+| COMT Val158Met | rs4680 | Dopamine clearance, stress resilience |
+| MTHFR C677T | rs1801133 | Methylation, serotonin synthesis |
+| SLC6A4 5-HTTLPR | — | Serotonin transporter, anxiety vulnerability |
+| DRD2 Taq1A | rs1800497 | D2 receptor density, reward sensitivity |
+| BDNF Val66Met | rs6265 | Neuroplasticity, hippocampal volume |
+| FAAH C385A | rs324420 | Anandamide tone, the "resilience SNP" |
+| FKBP5 rs1360780 | — | Glucocorticoid receptor sensitivity, PTSD risk |
+
+**SNP Presets** (combinations of variants):
+
+```python
+from limbic_hermes.core import LimbicSystem
+
+# Load a preset at initialization
+limbic = LimbicSystem(snp_profile_name="resilient")
+
+# Or switch at runtime
+limbic.set_snp_profile("anxiety_prone")
+```
+
+Available presets: `default`, `high_dopamine`, `low_dopamine`, `high_serotonin`, `low_serotonin`, `anxiety_prone`, `resilient`, `stress_vulnerable`, `reward_deficient`, `night_owl`, `pain_sensitive`.
+
+SNP effects are visible in the dashboard under the **🧬 Metabolic SNP Profile** panel.
+
+---
+
 ## Extending
 
 - Add more remedy profiles in `limbic_hermes/profiles.py`.

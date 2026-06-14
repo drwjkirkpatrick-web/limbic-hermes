@@ -194,6 +194,7 @@ class LimbicSystem:
         profile_name: str = "default",
         episodic_capacity: int = 30,
         now: Optional[float] = None,
+        snp_profile_name: Optional[str] = None,
     ):
         self.profile: TemperamentProfile = get_remedy_profile(profile_name)
         self.vad: VAD = self.profile.baseline_vad.clamp()
@@ -217,6 +218,23 @@ class LimbicSystem:
         self.glucose: float = 0.5
         self.last_negative_event_kind: Optional[str] = None
         self.last_negative_event_time: float = 0.0
+        # Metabolic SNP profile
+        self.snp_profile: Optional["MetabolicSNPProfile"] = None
+        if snp_profile_name:
+            from limbic_hermes.metabolic_snp import get_snp_presets, apply_snp_profile_to_neurochemistry
+            presets = get_snp_presets()
+            if snp_profile_name in presets:
+                self.snp_profile = presets[snp_profile_name]
+                apply_snp_profile_to_neurochemistry(self.neurochemistry.state, self.snp_profile, dt=1.0)
+
+    def set_snp_profile(self, snp_profile_name: str) -> None:
+        """Load and apply a metabolic SNP preset profile."""
+        from limbic_hermes.metabolic_snp import get_snp_presets, apply_snp_profile_to_neurochemistry
+        presets = get_snp_presets()
+        if snp_profile_name not in presets:
+            raise ValueError(f"Unknown SNP profile: {snp_profile_name}. Available: {list(presets.keys())}")
+        self.snp_profile = presets[snp_profile_name]
+        apply_snp_profile_to_neurochemistry(self.neurochemistry.state, self.snp_profile, dt=1.0)
 
     # -----------------------------------------------------------------------
     # Public API
@@ -564,6 +582,11 @@ class LimbicSystem:
             "neurogenesis_rate": self._round(n.neurogenesis_rate),
             "bbb_permeability": self._round(n.bbb_permeability),
             "nucleus_reuniens": self._round(n.nucleus_reuniens),
+            # Metabolic SNP profile
+            "snp_profile": (
+                {"name": self.snp_profile.name, "effects": self.snp_profile.get_variant_effects()}
+                if self.snp_profile else None
+            ),
         }
 
     def dominant_affect(self) -> str:

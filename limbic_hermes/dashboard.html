@@ -226,10 +226,59 @@
     </div>
     <div class="controls">
       <select id="profileSelect" title="Remedy profile">
+        <option value="default">Default</option>
         <option value="pulsatilla">Pulsatilla</option>
         <option value="bryonia">Bryonia</option>
         <option value="tarantula">Tarantula</option>
         <option value="calcarea">Calcarea</option>
+        <option value="arsenicum">Arsenicum</option>
+        <option value="lycopodium">Lycopodium</option>
+        <option value="natrum-muriaticum">Natrum Muriaticum</option>
+        <option value="sulphur">Sulphur</option>
+        <option value="phosphorus">Phosphorus</option>
+        <option value="nux-vomica">Nux Vomica</option>
+        <option value="hepar-sulphuris">Hepar Sulphuris</option>
+        <option value="sepia">Sepia</option>
+        <option value="gelsemium">Gelsemium</option>
+        <option value="aconitum">Aconitum</option>
+        <option value="agaricus">Agaricus</option>
+        <option value="anacardium">Anacardium</option>
+        <option value="antimonium-crudum">Antimonium Crudum</option>
+        <option value="apis">Apis</option>
+        <option value="argentum-nitricum">Argentum Nitricum</option>
+        <option value="arnica">Arnica</option>
+        <option value="aurum">Aurum</option>
+        <option value="belladonna">Belladonna</option>
+        <option value="carbo-vegetabilis">Carbo Vegetabilis</option>
+        <option value="causticum">Causticum</option>
+        <option value="chamomilla">Chamomilla</option>
+        <option value="chelidonium">Chelidonium</option>
+        <option value="china">China</option>
+        <option value="cicuta">Cicuta</option>
+        <option value="cocculus">Cocculus</option>
+        <option value="coffea">Coffea</option>
+        <option value="conium">Conium</option>
+        <option value="crocus">Crocus</option>
+        <option value="falco">Falco</option>
+        <option value="graphites">Graphites</option>
+        <option value="helleborus">Helleborus</option>
+        <option value="hyoscyamus">Hyoscyamus</option>
+        <option value="ignatia">Ignatia</option>
+        <option value="kalium-bromatum">Kalium Bromatum</option>
+        <option value="kalium-carbonicum">Kalium Carbonicum</option>
+        <option value="lachesis">Lachesis</option>
+        <option value="mercurius">Mercurius</option>
+        <option value="natrium-carbonicum">Natrium Carbonicum</option>
+        <option value="nux-moschata">Nux Moschata</option>
+        <option value="petroleum">Petroleum</option>
+        <option value="phosphoricum-acidum">Phosphoricum Acidum</option>
+        <option value="platinum">Platinum</option>
+        <option value="positronum">Positronum</option>
+        <option value="rhus-tox">Rhus Tox</option>
+        <option value="silicea">Silicea</option>
+        <option value="staphysagria">Staphysagria</option>
+        <option value="stramonium">Stramonium</option>
+        <option value="veratrum">Veratrum</option>
       </select>
       <input id="circadianInput" type="number" min="0" max="23.9" step="0.1" value="12" title="Circadian hour" style="width:70px;background:rgba(255,255,255,0.05);border:1px solid var(--panel-border);color:var(--text);padding:0.4rem;border-radius:0.35rem;">
       <button id="eventBtn">Simulate event</button>
@@ -325,6 +374,25 @@
         Adjust vitamins, minerals, and amino-acid precursors. 0.5 = baseline. These are educational simulations, not clinical recommendations.
       </p>
       <div id="cofactorControls"></div>
+    </section>
+
+    <section class="panel" style="grid-column: span 2;">
+      <h2>🌿 Remedy Personality</h2>
+      <p style="color:var(--muted);font-size:0.75rem;margin-top:-0.4rem;">
+        Select a homeopathic remedy temperament profile. Each has a unique constitutional baseline.
+      </p>
+      <div style="display:flex;flex-wrap:wrap;gap:0.4rem;margin-top:0.6rem;" id="remedyButtons"></div>
+      <div style="margin-top:0.6rem;font-size:0.75rem;color:var(--muted);" id="activeRemedy">Active: default</div>
+    </section>
+
+    <section class="panel" style="grid-column: span 2;">
+      <h2>🧬 Metabolic SNP Profile</h2>
+      <p style="color:var(--muted);font-size:0.75rem;margin-top:-0.4rem;">
+        Select a pharmacogenomic preset. These are educational simulations, not clinical recommendations.
+      </p>
+      <div style="display:flex;flex-wrap:wrap;gap:0.4rem;margin-top:0.6rem;" id="snpButtons"></div>
+      <div style="margin-top:0.6rem;font-size:0.75rem;color:var(--muted);" id="activeSNP">Active: none</div>
+      <div class="metric-grid" id="snpMetrics" style="margin-top:0.6rem;"></div>
     </section>
 
     <section class="panel" style="grid-column: span 2;">
@@ -505,6 +573,7 @@
       ].join('');
 
       renderCofactorControls(cofactors.levels);
+      renderSNPMetrics(state);
 
       const events = state.episodic_summary || [];
       document.getElementById('eventList').innerHTML = events.length
@@ -521,6 +590,7 @@
           }).join('')
         : '<div style="color:var(--muted)">No events yet.</div>';
 
+      document.getElementById('activeRemedy').textContent = 'Active: ' + (state.profile || 'default');
       document.getElementById('rawJson').textContent = JSON.stringify(state, null, 2);
     }
 
@@ -599,6 +669,55 @@
       await fetchState();
     });
 
+    // SNP Profile controls
+    let snpAvailable = [];
+    async function loadSNPProfiles() {
+      const res = await fetch(`${API}/snp`, { cache: 'no-store' });
+      const data = await res.json();
+      snpAvailable = data.available || [];
+      renderSNPButtons();
+    }
+
+    function renderSNPButtons() {
+      const container = document.getElementById('snpButtons');
+      const active = (currentState && currentState.snp_profile && currentState.snp_profile.name) || 'none';
+      document.getElementById('activeSNP').textContent = 'Active: ' + active;
+      if (!snpAvailable.length) {
+        container.innerHTML = '<div style="color:var(--muted)">Loading SNP presets…</div>';
+        return;
+      }
+      container.innerHTML = snpAvailable.map(name => {
+        const isActive = name === active;
+        return `<button class="${isActive ? 'danger' : ''}" data-snp="${name}" style="padding:0.35rem 0.6rem;border-radius:0.35rem;border:1px solid var(--panel-border);background:${isActive ? 'var(--accent1)' : 'rgba(255,255,255,0.05)'};color:var(--text);cursor:pointer;font-size:0.75rem;">${name}</button>`;
+      }).join('');
+      container.querySelectorAll('button').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          await fetch(`${API}/snp`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ snp_profile: btn.dataset.snp })
+          });
+          await fetchState();
+          renderSNPButtons();
+        });
+      });
+    }
+
+    function renderSNPMetrics(state) {
+      const container = document.getElementById('snpMetrics');
+      if (!state || !state.snp_profile || !state.snp_profile.effects) {
+        container.innerHTML = '<div style="color:var(--muted);font-size:0.75rem;">No SNP profile active.</div>';
+        return;
+      }
+      const effects = state.snp_profile.effects;
+      const entries = Object.entries(effects).sort((a, b) => b[1] - a[1]);
+      container.innerHTML = entries.map(([k, v]) => {
+        const bar = Math.round(Math.abs(v) * 100);
+        const color = v > 0 ? 'var(--accent1)' : 'var(--accent2)';
+        return `<div class="metric-row"><span>${k}</span><div style="flex:1;height:4px;background:rgba(255,255,255,0.05);border-radius:2px;margin:0 0.5rem;"><div style="width:${bar}%;height:100%;background:${color};border-radius:2px;${v < 0 ? 'margin-left:auto;' : ''}"></div></div><span class="value">${v > 0 ? '+' : ''}${fmt(v)}</span></div>`;
+      }).join('');
+    }
+
     // Export / Import state
     document.getElementById('exportBtn').addEventListener('click', async () => {
       const res = await fetch(`${API}/state`);
@@ -628,6 +747,7 @@
 
     // Initial load
     loadCofactorLibrary();
+    loadSNPProfiles();
     fetchState();
     setInterval(fetchState, 2000);
   </script>
